@@ -78,19 +78,29 @@ def cards_distribuition():
     board_card_5 = cards[board_card_5_id]
 
     river_card = board_card_5
+    print(' -- Player Card --')
+    print(player_cards)
+
+    print(' -- System Card --')
+    print(system_cards)
+
+    print(' -- Board Cards --')
+    print('Flop ->', flop_cards)
+    print('Turn >', turn_card)
+    print('River ->', river_card)
 
     return player_cards, system_cards, flop_cards, turn_card, river_card
 
 
-player_cards, system_cards, flop_cards, turn_card, river_card = cards_distribuition()
+#player_cards, system_cards, flop_cards, turn_card, river_card = cards_distribuition()
 
-print(' -- Player Card --')
-print(player_cards)
+#print(' -- Player Card --')
+#print(player_cards)
 
-print(' -- System Card --')
-print(system_cards)
+#print(' -- System Card --')
+#print(system_cards)
 
-print(' -- Board Cards --')
-print('Flop ->', flop_cards)
-print('Turn >', turn_card)
-print('River ->', river_card)
+#print(' -- Board Cards --')
+#print('Flop ->', flop_cards)
+#print('Turn >', turn_card)
+#print('River ->', river_card)
