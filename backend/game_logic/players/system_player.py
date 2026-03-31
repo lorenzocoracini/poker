@@ -1,7 +1,5 @@
-from    .base_player import Player
-
+from .base_player import Player
 
 class SystemPlayer(Player):
     def __init__(self):
-        super().__init__()
-        self.name = 'systemm'
+        super().__init__(name='System')
