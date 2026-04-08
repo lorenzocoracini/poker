@@ -1,22 +1,24 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
 from api.database import get_db
-from api import models
+from api.schemas.player_schema import PlayerRegisterSchema, PlayerResponseSchema, PlayerListSchema
+from api.usecases.player_usecase import PlayerRegisterUseCase, PlayerGetAllUseCase
 
 router = APIRouter()
 
-class PlayerCreate(BaseModel):
-    name: str
+db_dependency = Depends(get_db)
 
-@router.post('/')
-def create_player(player: PlayerCreate, db: Session = Depends(get_db)):
-    db_player = models.Player(name=player.name)
-    db.add(db_player)
-    db.commit()
-    db.refresh(db_player)
-    return db_player
 
-@router.get('/')
-def list_players(db: Session = Depends(get_db)):
-    return db.query(models.Player).all()
+@router.post('/register', response_model=PlayerResponseSchema)
+def register(payload: PlayerRegisterSchema, db: Session = db_dependency):
+    try:
+        player = PlayerRegisterUseCase(db).execute(payload)
+        return player
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get('/', response_model=PlayerListSchema)
+def get_all(db: Session = db_dependency):
+    players = PlayerGetAllUseCase(db).execute()
+    return {'players': players}
