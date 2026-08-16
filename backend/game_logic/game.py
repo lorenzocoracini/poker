@@ -1,5 +1,6 @@
-from game_logic.config.game_parameters import STACK_INICIAL, INICIAL_BLIND, NUMBER_OF_ROUNDS_TO_RAISE_BLIND
+from game_logic.config.game_parameters import INICIAL_BLIND, NUMBER_OF_ROUNDS_TO_RAISE_BLIND
 from game_logic.engine.cards_distribution import cards_distribution
+from game_logic.engine.hands_evaluation import evaluate_showdown
 from game_logic.players.system_player import SystemPlayer
 from game_logic.players.user_player import UserPlayer
 import random
@@ -299,25 +300,20 @@ class PokerGame:
         self._print_board(flop=flop, turn=turn, river=river)
         print(f'  {self.player.name}: {self.player.hand}')
         print(f'  {self.system.name}: {self.system.hand}')
-        print('\n[ Hand evaluator ainda não implementado — escolha o vencedor ]')
-        print('  1 - Player vence')
-        print('  2 - System vence')
-        print('  3 - Empate')
 
-        while True:
-            choice = input('Vencedor: ').strip()
-            if choice == '1':
-                return self._end_round(pot, 'player')
-            elif choice == '2':
-                return self._end_round(pot, 'system')
-            elif choice == '3':
-                self.player.stack += pot // 2
-                self.system.stack += pot // 2
-                print(f'\nEmpate! Pot dividido.')
-                self._print_stacks()
-                return pot
-            else:
-                print('Opção inválida.')
+        community = flop + [turn, river]
+        result = evaluate_showdown(self.player.hand, self.system.hand, community)
+
+        if result == 'tie':
+            self.player.stack += pot // 2
+            self.system.stack += pot // 2
+            print(f'\nEmpate! Pot dividido.')
+            self._print_stacks()
+            self.player.fold()
+            self.system.fold()
+            return pot
+
+        return self._end_round(pot, result)
 
     def run(self):
         print('═' * 50)

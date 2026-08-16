@@ -1,12 +1,23 @@
-# To do
+from treys import Card as TreysCard, Evaluator
 
-class HandsEvaluation:
-    def __init__(self, player_hand: dict, system_hand: dict):
-        self.player_hand = player_hand
-        self.system_hand = system_hand
+_SUIT_MAP = {'hearts': 'h', 'diamonds': 'd', 'clubs': 'c', 'spades': 's'}
+_RANK_MAP = {'10': 'T'}
 
-    
-    def evaluate(self):
-        if self.player_hand > self.system_hand:
-            return self.player_hand
-        return self.system_hand
+def _to_treys(card) -> int:
+    rank = _RANK_MAP.get(card.rank, card.rank)
+    suit = _SUIT_MAP[card.suit]
+    return TreysCard.new(f'{rank}{suit}')
+
+
+def evaluate_showdown(player_hand: list, system_hand: list, community_cards: list) -> str:
+    evaluator = Evaluator()
+    board = [_to_treys(c) for c in community_cards]
+    p_score = evaluator.evaluate(board, [_to_treys(c) for c in player_hand])
+    s_score = evaluator.evaluate(board, [_to_treys(c) for c in system_hand])
+
+    if p_score < s_score:
+        return 'player'
+    elif s_score < p_score:
+        return 'system'
+    else:
+        return 'tie'
