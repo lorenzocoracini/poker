@@ -86,7 +86,21 @@ class PokerGame:
             except ValueError:
                 print('Digite um número.')
 
-    def _get_action(self, actor_name: str, pot: int, to_call: int, can_check: bool, has_bet: bool) -> tuple:
+    def _get_action(self, actor_name: str, pot: int, to_call: int, can_check: bool, has_bet: bool, community_cards: list = None) -> tuple:
+        if actor_name == 'system':
+            game_state = {
+                'community_cards': community_cards or [],
+                'pot':      pot,
+                'to_call':  to_call,
+                'can_check': can_check,
+                'has_bet':  has_bet,
+                'is_button': self.button == 'system',
+                'big_blind': self.blind * 2,
+            }
+            return self.system.decide_action(game_state)
+        return self._get_player_action(actor_name, pot, to_call, can_check, has_bet)
+
+    def _get_player_action(self, actor_name: str, pot: int, to_call: int, can_check: bool, has_bet: bool) -> tuple:
         actor = self._get_actor(actor_name)
         print(f'\n[ {actor.name.upper()} ] stack: {actor.stack} | pot: {pot} | to call: {to_call}')
         print(f'  Suas cartas: {actor.hand}')
@@ -160,7 +174,7 @@ class PokerGame:
                 else:
                     print('Opção inválida, tente novamente.')
 
-    def _betting_round(self, first_actor: str, pot: int, to_call: int = 0, can_check: bool = False, is_preflop: bool = False, has_bet: bool = False) -> tuple:
+    def _betting_round(self, first_actor: str, pot: int, to_call: int = 0, can_check: bool = False, is_preflop: bool = False, has_bet: bool = False, community_cards: list = None) -> tuple:
         second_actor = 'system' if first_actor == 'player' else 'player'
         actors = [first_actor, second_actor]
         last_raiser = None
@@ -173,7 +187,7 @@ class PokerGame:
             if actor_obj.stack == 0:
                 return pot, None
 
-            action, amount = self._get_action(current, pot, to_call, can_check, has_bet)
+            action, amount = self._get_action(current, pot, to_call, can_check, has_bet, community_cards)
 
             if action == 'fold':
                 print(f'\n{actor_obj.name} foldou!')
@@ -261,26 +275,27 @@ class PokerGame:
             to_call=small_blind,
             can_check=False,
             is_preflop=True,
-            has_bet=True
+            has_bet=True,
+            community_cards=[]
         )
         if winner:
             return self._end_round(pot, winner)
 
         print('\n── FLOP ──')
         self._print_board(flop=flop)
-        pot, winner = self._betting_round(first_actor=self.big_blind, pot=pot, can_check=True)
+        pot, winner = self._betting_round(first_actor=self.big_blind, pot=pot, can_check=True, community_cards=flop)
         if winner:
             return self._end_round(pot, winner)
 
         print('\n── TURN ──')
         self._print_board(flop=flop, turn=turn)
-        pot, winner = self._betting_round(first_actor=self.big_blind, pot=pot, can_check=True)
+        pot, winner = self._betting_round(first_actor=self.big_blind, pot=pot, can_check=True, community_cards=flop + [turn])
         if winner:
             return self._end_round(pot, winner)
 
         print('\n── RIVER ──')
         self._print_board(flop=flop, turn=turn, river=river)
-        pot, winner = self._betting_round(first_actor=self.big_blind, pot=pot, can_check=True)
+        pot, winner = self._betting_round(first_actor=self.big_blind, pot=pot, can_check=True, community_cards=flop + [turn, river])
         if winner:
             return self._end_round(pot, winner)
 
