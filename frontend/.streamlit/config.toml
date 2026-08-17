@@ -1,0 +1,6 @@
+[server]
+fileWatcherType = "poll"
+
+[runner]
+# Garante que mudancas no backend/ tambem acionam o reload
+fastReruns = true

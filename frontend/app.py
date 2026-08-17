@@ -60,9 +60,9 @@ with st.sidebar:
 
     if ctrl and state:
         c1, c2 = st.columns(2)
-        c1.metric('Round',  state['round_number'])
-        c2.metric('Blind',  state['blind'])
-        st.metric('Pot', state['pot'])
+        c1.metric('Round', state['round_number'])
+        c2.metric('Pot',   state['pot'])
+        st.write(f"**Blinds:** {state['blind']} / {state['blind'] * 2}  *(SB / BB)*")
         st.divider()
 
         st.write(f"**Street:** {(state['street'] or '—').upper()}")
@@ -134,10 +134,25 @@ with col_p:
     st.markdown('#### 👤 Sua mão')
     st.markdown(render_hand(state['player_hand']), unsafe_allow_html=True)
 
+ACTION_LABELS = {
+    'fold':  '🔴 foldou',
+    'check': '⚪ check',
+    'call':  '🟡 call {}',
+    'bet':   '🟠 bet {}',
+    'raise': '🟢 raise {}',
+    'allin': '🔥 ALL-IN {}',
+}
+
 with col_s:
     st.markdown('#### 🤖 Sistema')
     st.markdown(render_hand(state['system_hand'], hidden=not reveal_system),
                 unsafe_allow_html=True)
+    last = state.get('last_system_action')
+    if last:
+        action, amount = last
+        template = ACTION_LABELS.get(action, action)
+        label = template.format(amount) if '{}' in template else template
+        st.caption(f'Última ação: **{label}**')
 
 st.divider()
 
@@ -152,15 +167,18 @@ if status == 'WAITING_PLAYER':
     needs_amount = any(a in acts for a in ('bet', 'raise'))
 
     if needs_amount:
-        default_amt = next(amt for a, _, amt in valid if a in ('bet', 'raise'))
         max_amt     = state['player_stack']
+        safe_min    = bb
+        safe_max    = max(bb, max_amt)
+        safe_val    = max(safe_min, min(bb, safe_max))
+        input_key   = f'raise_{state["round_number"]}_{state["street"]}'
         st.number_input(
-            'Valor do bet / raise',
-            min_value=bb,
-            max_value=max(bb, max_amt),
-            value=min(default_amt, max_amt),
+            f'Valor do bet / raise  (BB = {bb}, pot = {state["pot"]})',
+            min_value=safe_min,
+            max_value=safe_max,
+            value=safe_val,
             step=bb,
-            key='raise_amount',
+            key=input_key,
         )
 
     btn_cols = st.columns(len(valid))
@@ -169,7 +187,7 @@ if status == 'WAITING_PLAYER':
             btn_type = 'primary' if action in ('call', 'check') else 'secondary'
             if st.button(label, type=btn_type, use_container_width=True):
                 amt = (
-                    int(st.session_state.get('raise_amount', default_amount))
+                    int(st.session_state.get(input_key, bb))
                     if action in ('bet', 'raise') else default_amount
                 )
                 ctrl.apply_player_action(action, amt)

@@ -42,12 +42,13 @@ class GameController:
         self._is_preflop = False
 
         # Status: INIT | WAITING_PLAYER | ROUND_OVER | GAME_OVER
-        self.status            = 'INIT'
-        self.round_winner      = None
-        self.showdown          = False
-        self.log               = []
-        self._last_player_hand = []
-        self._last_system_hand = []
+        self.status              = 'INIT'
+        self.round_winner        = None
+        self.showdown            = False
+        self.log                 = []
+        self._last_player_hand   = []
+        self._last_system_hand   = []
+        self._last_system_action = None
 
         self.recorder.start_game()
 
@@ -168,6 +169,9 @@ class GameController:
         actor = self._actor(actor_name)
         other = self._other(actor_name)
         self.recorder.record_action(actor_name, action, amount, fuzzy)
+
+        if actor_name == 'system':
+            self._last_system_action = (action, amount)
 
         if action == 'fold':
             self.log.append(f'{actor.name} foldou.')
@@ -337,7 +341,8 @@ class GameController:
             'log':             list(self.log[-30:]),
             'round_winner':    self.round_winner,
             'showdown':        self.showdown,
-            'valid_actions':   self.get_valid_actions() if self.status == 'WAITING_PLAYER' else [],
+            'valid_actions':        self.get_valid_actions() if self.status == 'WAITING_PLAYER' else [],
+            'last_system_action':   self._last_system_action,
         }
 
     def end_game(self):
