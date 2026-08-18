@@ -49,6 +49,8 @@ class GameController:
         self._last_player_hand   = []
         self._last_system_hand   = []
         self._last_system_action = None
+        self._player_hand_desc   = ''
+        self._system_hand_desc   = ''
 
         self.recorder.start_game()
 
@@ -123,11 +125,14 @@ class GameController:
         self.can_check   = False
         self.has_bet     = True
         self.last_raiser = None
-        self.round_winner      = None
-        self.showdown          = False
-        self.status            = None  # reset so _advance_until_player doesn't return immediately
-        self._last_player_hand = []
-        self._last_system_hand = []
+        self.round_winner        = None
+        self.showdown            = False
+        self.status              = None  # reset so _advance_until_player doesn't return immediately
+        self._last_player_hand   = []
+        self._last_system_hand   = []
+        self._last_system_action = None
+        self._player_hand_desc   = ''
+        self._system_hand_desc   = ''
 
         return self._advance_until_player()
 
@@ -273,17 +278,20 @@ class GameController:
         self.showdown = True
 
         community = self._community_cards()
-        result = evaluate_showdown(self.player.hand, self.system.hand, community)
+        result, p_desc, s_desc = evaluate_showdown(self.player.hand, self.system.hand, community)
+        self._player_hand_desc = p_desc
+        self._system_hand_desc = s_desc
 
         if result == 'tie':
             self.player.stack += self.pot // 2
             self.system.stack += self.pot // 2
             self.round_winner  = 'tie'
-            self.log.append('Empate! Pot dividido.')
+            self.log.append(f'Empate! ({p_desc}) Pot dividido.')
         else:
             self._actor(result).stack += self.pot
             self.round_winner = result
-            self.log.append(f'{self._actor(result).name} ganhou {self.pot} no showdown!')
+            winner_desc = p_desc if result == 'player' else s_desc
+            self.log.append(f'{self._actor(result).name} ganhou {self.pot} com {winner_desc}!')
 
         self._last_player_hand = list(self.player.hand)
         self._last_system_hand = list(self.system.hand)
@@ -361,6 +369,8 @@ class GameController:
             'showdown':        self.showdown,
             'valid_actions':        self.get_valid_actions() if self.status == 'WAITING_PLAYER' else [],
             'last_system_action':   self._last_system_action,
+            'player_hand_desc':     self._player_hand_desc,
+            'system_hand_desc':     self._system_hand_desc,
         }
 
     def end_game(self):

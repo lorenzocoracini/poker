@@ -133,6 +133,8 @@ reveal_system = state['showdown'] or status in ('ROUND_OVER', 'GAME_OVER')
 with col_p:
     st.markdown('#### 👤 Sua mão')
     st.markdown(render_hand(state['player_hand']), unsafe_allow_html=True)
+    if reveal_system and state.get('player_hand_desc'):
+        st.caption(state['player_hand_desc'])
 
 ACTION_LABELS = {
     'fold':  '🔴 foldou',
@@ -147,8 +149,10 @@ with col_s:
     st.markdown('#### 🤖 Sistema')
     st.markdown(render_hand(state['system_hand'], hidden=not reveal_system),
                 unsafe_allow_html=True)
+    if reveal_system and state.get('system_hand_desc'):
+        st.caption(state['system_hand_desc'])
     last = state.get('last_system_action')
-    if last:
+    if last and not reveal_system:
         action, amount = last
         template = ACTION_LABELS.get(action, action)
         label = template.format(amount) if '{}' in template else template
@@ -204,22 +208,14 @@ elif status == 'ROUND_OVER':
     else:
         st.info('Empate! Pot dividido.')
 
-    how = 'Showdown' if state['showdown'] else 'Fold'
-    st.caption(f'Encerramento: {how}')
+    st.caption(f'Encerramento: {"Showdown" if state["showdown"] else "Fold"}')
 
-    # Sempre mostra o board final
-    if state['community_cards']:
-        st.markdown('**Board final**')
-        st.markdown(render_hand(state['community_cards']), unsafe_allow_html=True)
-
-    # Sempre mostra as duas mãos ao fim do round
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown('**Sua mão**')
-        st.markdown(render_hand(state['player_hand']), unsafe_allow_html=True)
-    with c2:
-        st.markdown('**Mão do sistema**')
-        st.markdown(render_hand(state['system_hand']), unsafe_allow_html=True)
+    # Descrições das mãos só no showdown (no fold o sistema não revela)
+    if state['showdown']:
+        p_desc = state.get('player_hand_desc', '')
+        s_desc = state.get('system_hand_desc', '')
+        if p_desc:
+            st.caption(f'Sua mão: **{p_desc}**  |  Sistema: **{s_desc}**')
 
     st.divider()
     if st.button('▶ Próxima Rodada', type='primary', use_container_width=True):
