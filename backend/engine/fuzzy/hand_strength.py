@@ -1,7 +1,7 @@
 import random
 from treys import Card as TreysCard, Evaluator
-from game_logic.engine.hands_evaluation import to_treys
-from game_logic.engine.cards_distribution import RANKS, SUITS
+from engine.game.hands_evaluation import to_treys
+from engine.game.cards_distribution import RANKS, SUITS
 
 _SUIT_MAP = {'hearts': 'h', 'diamonds': 'd', 'clubs': 'c', 'spades': 's'}
 _RANK_MAP = {'10': 'T'}

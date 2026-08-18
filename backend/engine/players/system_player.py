@@ -1,6 +1,6 @@
 from .base_player import Player
-from game_logic.fuzzy.fuzzy_agent import FuzzyPokerAgent
-from game_logic.fuzzy.hand_strength import calculate_win_probability
+from engine.fuzzy.fuzzy_agent import FuzzyPokerAgent
+from engine.fuzzy.hand_strength import calculate_win_probability
 
 
 class SystemPlayer(Player):
@@ -36,7 +36,6 @@ class SystemPlayer(Player):
 
         raise_amount = min(big_blind * 3, self.stack)
 
-        # Mapeia a recomendação fuzzy para uma ação válida no estado atual do jogo
         if can_check and not has_bet:
             if recommendation == 'raise':
                 return ('bet', raise_amount)

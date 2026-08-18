@@ -1,11 +1,11 @@
 import random
-from game_logic.config.game_parameters import INICIAL_BLIND, NUMBER_OF_ROUNDS_TO_RAISE_BLIND
-from game_logic.engine.cards_distribution import cards_distribution
-from game_logic.engine.hands_evaluation import evaluate_showdown
-from game_logic.players.system_player import SystemPlayer
-from game_logic.players.user_player import UserPlayer
-from game_logic.db.database import init_db
-from game_logic.db.recorder import GameRecorder
+from engine.config.game_parameters import INICIAL_BLIND, NUMBER_OF_ROUNDS_TO_RAISE_BLIND
+from engine.game.cards_distribution import cards_distribution
+from engine.game.hands_evaluation import evaluate_showdown
+from engine.players.system_player import SystemPlayer
+from engine.players.user_player import UserPlayer
+from db.database import init_db
+from db.recorder import GameRecorder
 
 
 class GameController:

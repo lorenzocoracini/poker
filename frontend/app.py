@@ -3,7 +3,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
 import streamlit as st
-from game_logic.controller import GameController
+from engine.game.controller import GameController
 
 st.set_page_config(page_title='Poker Agent', page_icon='🃏', layout='wide')
 

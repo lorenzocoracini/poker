@@ -1,12 +1,12 @@
 import pytest
-from game_logic.players.base_player import Player
-from game_logic.players.system_player import SystemPlayer
-from game_logic.players.user_player import UserPlayer
-from game_logic.engine.cards_distribution import Card
-from game_logic.config.game_parameters import STACK_INICIAL
+from engine.players.base_player import Player
+from engine.players.system_player import SystemPlayer
+from engine.players.user_player import UserPlayer
+from engine.game.cards_distribution import Card
+from engine.config.game_parameters import STACK_INICIAL
 
 
-#  Base Player 
+#  Base Player
 
 def test_player_initial_stack():
     player = Player(name='Test')
@@ -34,7 +34,7 @@ def test_player_repr():
     assert repr(player) == f'Test (stack: {STACK_INICIAL})'
 
 
-# System Player 
+# System Player
 
 def test_system_player_name():
     system = SystemPlayer()

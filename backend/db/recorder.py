@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone
-from game_logic.db.database import get_connection
+from db.database import get_connection
 
 
 def _now() -> str:

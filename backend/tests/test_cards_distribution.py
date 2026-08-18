@@ -1,5 +1,5 @@
 import pytest
-from game_logic.engine.cards_distribution import cards_distribution, Deck, Card
+from engine.game.cards_distribution import cards_distribution, Deck, Card
 
 
 def test_card_creation():
