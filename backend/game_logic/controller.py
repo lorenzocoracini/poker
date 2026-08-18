@@ -211,15 +211,26 @@ class GameController:
                 self._next_street()
 
         elif action == 'allin':
-            amt = actor.stack
-            actor.stack  = 0
-            self.pot    += amt
-            self.to_call = amt
+            all_in_amt = actor.stack
+            other_obj  = self._actor(other)
+            # Em heads-up não há side pot: o excesso que o oponente não pode pagar
+            # volta imediatamente para quem foi all-in
+            effective  = min(all_in_amt, other_obj.stack)
+            excess     = all_in_amt - effective
+
+            actor.stack  = excess   # devolve o que não pode ser contestado
+            self.pot    += effective
+            self.to_call = effective
             self.has_bet = True
             self.last_raiser = actor_name
-            self.log.append(f'{actor.name} ALL-IN {amt}! Pot: {self.pot}')
+
+            if excess > 0:
+                self.log.append(f'{actor.name} ALL-IN {effective} (devolvidos {excess}). Pot: {self.pot}')
+            else:
+                self.log.append(f'{actor.name} ALL-IN {effective}! Pot: {self.pot}')
+
             self._actor_idx += 1
-            if self._actor(other).stack == 0:
+            if other_obj.stack == 0:
                 self._go_to_showdown()
 
     # ── Street and round transitions ──────────────────────────────────────────
@@ -250,6 +261,10 @@ class GameController:
         self._actors     = [self.big_blind_pos, self.button]
         self._actor_idx  = 0
         self.recorder.set_street(self.street)
+
+        # Se alguém está all-in não há mais betting — corre o board e vai ao showdown
+        if self.player.stack == 0 or self.system.stack == 0:
+            self._go_to_showdown()
 
     def _go_to_showdown(self):
         self.flop  = self._full_flop
@@ -302,21 +317,24 @@ class GameController:
         acts  = []
 
         if self.can_check and not self.has_bet:
-            acts.append(('check', 'Check',                  0))
-            acts.append(('bet',   'Bet',                    bb * 2))
-            acts.append(('allin', f'All-in ({actor.stack})', actor.stack))
+            acts.append(('check', 'Check', 0))
+            if actor.stack > 0:
+                acts.append(('bet',   'Bet',                     bb * 2))
+                acts.append(('allin', f'All-in ({actor.stack})', actor.stack))
         elif self.to_call == 0:
-            acts.append(('check', 'Check',                  0))
-            acts.append(('raise', 'Raise',                  bb * 2))
-            acts.append(('allin', f'All-in ({actor.stack})', actor.stack))
+            acts.append(('check', 'Check', 0))
+            if actor.stack > 0:
+                acts.append(('raise', 'Raise',                   bb * 2))
+                acts.append(('allin', f'All-in ({actor.stack})', actor.stack))
         elif self.to_call >= actor.stack:
-            acts.append(('fold', 'Fold',                               0))
+            acts.append(('fold', 'Fold',                              0))
             acts.append(('call', f'Call all-in ({actor.stack})', actor.stack))
         else:
             acts.append(('fold',  'Fold',                   0))
             acts.append(('call',  f'Call ({self.to_call})', self.to_call))
-            acts.append(('raise', 'Raise',                  bb * 2))
-            acts.append(('allin', f'All-in ({actor.stack})', actor.stack))
+            if actor.stack > 0:
+                acts.append(('raise', 'Raise',                   bb * 2))
+                acts.append(('allin', f'All-in ({actor.stack})', actor.stack))
 
         return acts
 
