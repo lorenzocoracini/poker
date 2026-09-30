@@ -78,11 +78,15 @@ class GameRecorder:
         conn.execute(
             """INSERT INTO actions
                (round_id, street, actor, action_type, amount,
-                win_prob, pot_odds, position, fuzzy_recommendation)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                win_prob, pot_odds, position,
+                ppot, npot, opponent_aggression, stack_commitment,
+                fuzzy_recommendation)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (self._round_id, self._street, actor, action_type, amount,
-             fd.get('win_prob'), fd.get('pot_odds'),
-             fd.get('position'), fd.get('recommendation')),
+             fd.get('win_prob'), fd.get('pot_odds'), fd.get('position'),
+             fd.get('ppot'), fd.get('npot'),
+             fd.get('opponent_aggression'), fd.get('stack_commitment'),
+             fd.get('recommendation')),
         )
         conn.commit()
         conn.close()

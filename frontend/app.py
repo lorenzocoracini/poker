@@ -74,9 +74,9 @@ with st.sidebar:
 
         st.write('**Fichas**')
         st.write(f'👤 Você: **{state["player_stack"]}**')
-        st.progress(state['player_stack'] / safe)
+        st.progress(max(0.0, min(state['player_stack'] / safe, 1.0)))
         st.write(f'🤖 Sistema: **{state["system_stack"]}**')
-        st.progress(state['system_stack'] / safe)
+        st.progress(max(0.0, min(state['system_stack'] / safe, 1.0)))
         st.divider()
 
         # Fuzzy insight (valor para o TCC)
@@ -85,6 +85,10 @@ with st.sidebar:
             st.write('**Última decisão fuzzy**')
             st.write(f"Win prob: `{fuzzy.get('win_prob', 0):.1%}`")
             st.write(f"Pot odds: `{fuzzy.get('pot_odds', 0):.1%}`")
+            st.write(f"PPot: `{fuzzy.get('ppot', 0):.1%}`")
+            st.write(f"NPot: `{fuzzy.get('npot', 0):.1%}`")
+            st.write(f"Agressividade oponente: `{fuzzy.get('opponent_aggression', 0):.1%}`")
+            st.write(f"Stack committed: `{fuzzy.get('stack_commitment', 0):.1%}`")
             rec = fuzzy.get('recommendation', '—')
             color = {'fold': '🔴', 'call': '🟡', 'raise': '🟢'}.get(rec, '⚪')
             st.write(f"Recomendação: {color} **{rec}**")

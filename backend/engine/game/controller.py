@@ -49,8 +49,13 @@ class GameController:
         self._last_player_hand   = []
         self._last_system_hand   = []
         self._last_system_action = None
+        self._last_player_action = None
         self._player_hand_desc   = ''
         self._system_hand_desc   = ''
+
+        # Opponent-modeling state for the fuzzy agent
+        self._actions_this_street  = []
+        self._raises_prev_streets  = {'player': 0, 'system': 0}
 
         self.recorder.start_game()
 
@@ -106,12 +111,14 @@ class GameController:
         bb     = self.blind * 2
         btn    = self._actor(self.button)
         bb_obj = self._actor(self.big_blind_pos)
-        btn.stack    -= sb
-        bb_obj.stack -= bb
-        self.pot = sb + bb
+        sb_amt = min(sb, btn.stack)
+        bb_amt = min(bb, bb_obj.stack)
+        btn.stack    -= sb_amt
+        bb_obj.stack -= bb_amt
+        self.pot = sb_amt + bb_amt
 
         self.log.append(f'── Round {self.round_number} | Blind {self.blind} ──')
-        self.log.append(f'{btn.name} SB {sb}  {bb_obj.name} BB {bb}  Pot: {self.pot}')
+        self.log.append(f'{btn.name} SB {sb_amt}  {bb_obj.name} BB {bb_amt}  Pot: {self.pot}')
 
         self.recorder.start_round(self.round_number, self.blind,
                                   player_cards, system_cards)
@@ -121,7 +128,7 @@ class GameController:
         self._is_preflop = True
         self._actors     = [self.button, self.big_blind_pos]
         self._actor_idx  = 0
-        self.to_call     = sb
+        self.to_call     = max(0, bb_amt - sb_amt)
         self.can_check   = False
         self.has_bet     = True
         self.last_raiser = None
@@ -131,8 +138,11 @@ class GameController:
         self._last_player_hand   = []
         self._last_system_hand   = []
         self._last_system_action = None
+        self._last_player_action = None
         self._player_hand_desc   = ''
         self._system_hand_desc   = ''
+        self._actions_this_street = []
+        self._raises_prev_streets = {'player': 0, 'system': 0}
 
         return self._advance_until_player()
 
@@ -149,6 +159,10 @@ class GameController:
             self._apply_system_action()
 
     def _apply_system_action(self):
+        raises_this_street = sum(
+            1 for actor, act in self._actions_this_street
+            if actor == 'player' and act in ('bet', 'raise', 'allin')
+        )
         gs = {
             'community_cards': self._community_cards(),
             'pot':       self.pot,
@@ -157,6 +171,10 @@ class GameController:
             'has_bet':   self.has_bet,
             'is_button': self.button == 'system',
             'big_blind': self.blind * 2,
+            'street':                     self.street,
+            'last_player_action':         self._last_player_action[0] if self._last_player_action else None,
+            'player_raises_this_street':  raises_this_street,
+            'player_raises_prev_streets': self._raises_prev_streets.get('player', 0),
         }
         action, amount = self.system.decide_action(gs)
         self._apply_action('system', action, amount, self.system.last_fuzzy_data)
@@ -174,9 +192,12 @@ class GameController:
         actor = self._actor(actor_name)
         other = self._other(actor_name)
         self.recorder.record_action(actor_name, action, amount, fuzzy)
+        self._actions_this_street.append((actor_name, action))
 
         if actor_name == 'system':
             self._last_system_action = (action, amount)
+        else:
+            self._last_player_action = (action, amount)
 
         if action == 'fold':
             self.log.append(f'{actor.name} foldou.')
@@ -247,6 +268,11 @@ class GameController:
         if idx == len(order) - 1:
             self._go_to_showdown()
             return
+
+        for actor, act in self._actions_this_street:
+            if act in ('bet', 'raise', 'allin'):
+                self._raises_prev_streets[actor] += 1
+        self._actions_this_street = []
 
         self.street      = order[idx + 1]
         self._is_preflop = False
@@ -369,6 +395,7 @@ class GameController:
             'showdown':        self.showdown,
             'valid_actions':        self.get_valid_actions() if self.status == 'WAITING_PLAYER' else [],
             'last_system_action':   self._last_system_action,
+            'last_player_action':   self._last_player_action,
             'player_hand_desc':     self._player_hand_desc,
             'system_hand_desc':     self._system_hand_desc,
         }

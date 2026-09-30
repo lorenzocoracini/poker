@@ -45,6 +45,10 @@ def init_db():
             win_prob             REAL,
             pot_odds             REAL,
             position             REAL,
+            ppot                 REAL,
+            npot                 REAL,
+            opponent_aggression  REAL,
+            stack_commitment     REAL,
             fuzzy_recommendation TEXT
         );
     """)

@@ -12,6 +12,10 @@ class FuzzyPokerAgent:
         hand_strength = ctrl.Antecedent(np.arange(0, 1.01, 0.01), 'hand_strength')
         pot_odds      = ctrl.Antecedent(np.arange(0, 1.01, 0.01), 'pot_odds')
         position      = ctrl.Antecedent(np.arange(0, 1.01, 0.01), 'position')
+        ppot          = ctrl.Antecedent(np.arange(0, 1.01, 0.01), 'ppot')
+        npot          = ctrl.Antecedent(np.arange(0, 1.01, 0.01), 'npot')
+        opponent_aggression = ctrl.Antecedent(np.arange(0, 1.01, 0.01), 'opponent_aggression')
+        stack_commitment    = ctrl.Antecedent(np.arange(0, 1.01, 0.01), 'stack_commitment')
 
         # --- Consequente ---
         action_score  = ctrl.Consequent(np.arange(0, 1.01, 0.01), 'action_score')
@@ -30,6 +34,29 @@ class FuzzyPokerAgent:
         # --- Funções de pertinência: position ---
         position['fora']   = fuzz.trapmf(position.universe, [0,    0,    0.30, 0.50])
         position['dentro'] = fuzz.trapmf(position.universe, [0.50, 0.70, 1.00, 1.00])
+
+        # --- Funções de pertinência: ppot / npot (potencial positivo/negativo — Billings 2006) ---
+        # NOTA: breakpoints são estimativas de engenharia (não vêm de literatura), a
+        # recalibrar na etapa de tuning por ML (ver PLANO_EXPANSAO_FUZZY.md).
+        ppot['baixo'] = fuzz.trapmf(ppot.universe, [0,    0,    0.15, 0.30])
+        ppot['medio'] = fuzz.trimf( ppot.universe, [0.20, 0.35, 0.50])
+        ppot['alto']  = fuzz.trapmf(ppot.universe, [0.40, 0.55, 1.00, 1.00])
+
+        npot['baixo'] = fuzz.trapmf(npot.universe, [0,    0,    0.15, 0.30])
+        npot['medio'] = fuzz.trimf( npot.universe, [0.20, 0.35, 0.50])
+        npot['alto']  = fuzz.trapmf(npot.universe, [0.40, 0.55, 1.00, 1.00])
+
+        # --- Funções de pertinência: opponent_aggression ---
+        # NOTA: breakpoints são estimativas de engenharia, mesmo racional acima.
+        opponent_aggression['passivo']   = fuzz.trapmf(opponent_aggression.universe, [0,    0,    0.25, 0.40])
+        opponent_aggression['moderado']  = fuzz.trimf( opponent_aggression.universe, [0.30, 0.50, 0.70])
+        opponent_aggression['agressivo'] = fuzz.trapmf(opponent_aggression.universe, [0.60, 0.75, 1.00, 1.00])
+
+        # --- Funções de pertinência: stack_commitment (proxy de SPR — pot/(pot+stack)) ---
+        # NOTA: breakpoints são estimativas de engenharia, mesmo racional acima.
+        stack_commitment['baixo'] = fuzz.trapmf(stack_commitment.universe, [0,    0,    0.20, 0.35])
+        stack_commitment['medio'] = fuzz.trimf( stack_commitment.universe, [0.25, 0.45, 0.65])
+        stack_commitment['alto']  = fuzz.trapmf(stack_commitment.universe, [0.55, 0.70, 1.00, 1.00])
 
         # --- Funções de pertinência: action_score ---
         action_score['fold']  = fuzz.trapmf(action_score.universe, [0,    0,    0.20, 0.35])
@@ -63,15 +90,41 @@ class FuzzyPokerAgent:
 
             # Mão fraca com posição: call ocasional (tentativa de roubo)
             ctrl.Rule(hand_strength['fraca'] & position['dentro'], action_score['call']),
+
+            # --- PPot / NPot: potencial de melhora/piora da mão ---
+            ctrl.Rule(hand_strength['media'] & ppot['alto'],                        action_score['call']),
+            ctrl.Rule(hand_strength['fraca'] & ppot['alto'] & pot_odds['baixo'],     action_score['call']),
+            ctrl.Rule(hand_strength['forte'] & npot['alto'],                        action_score['call']),
+            ctrl.Rule(hand_strength['media'] & npot['alto'],                        action_score['fold']),
+
+            # --- Agressividade do oponente (opponent modeling) ---
+            ctrl.Rule(hand_strength['fraca'] & opponent_aggression['agressivo'],                     action_score['fold']),
+            ctrl.Rule(hand_strength['media'] & opponent_aggression['agressivo'],                     action_score['fold']),
+            ctrl.Rule(hand_strength['media'] & opponent_aggression['agressivo'] & pot_odds['alto'],  action_score['fold']),
+            ctrl.Rule(hand_strength['forte'] & opponent_aggression['passivo'],                       action_score['raise']),
+            ctrl.Rule(hand_strength['media'] & opponent_aggression['passivo'],                       action_score['call']),
+            ctrl.Rule(hand_strength['fraca'] & opponent_aggression['passivo'] & position['dentro'],  action_score['raise']),
+
+            # --- Comprometimento de stack (SPR) ---
+            ctrl.Rule(hand_strength['forte'] & stack_commitment['alto'],                    action_score['raise']),
+            ctrl.Rule(hand_strength['media'] & stack_commitment['alto'],                    action_score['call']),
+            ctrl.Rule(hand_strength['fraca'] & stack_commitment['baixo'],                   action_score['fold']),
+            ctrl.Rule(stack_commitment['alto'] & pot_odds['baixo'],                         action_score['call']),
         ]
 
         system = ctrl.ControlSystem(rules)
         self._sim = ctrl.ControlSystemSimulation(system)
 
-    def decide(self, hand_strength_val: float, pot_odds_val: float, position_val: float) -> str:
-        self._sim.input['hand_strength'] = float(np.clip(hand_strength_val, 0.01, 0.99))
-        self._sim.input['pot_odds']      = float(np.clip(pot_odds_val,      0.01, 0.99))
-        self._sim.input['position']      = float(np.clip(position_val,      0.01, 0.99))
+    def decide(self, hand_strength_val: float, pot_odds_val: float, position_val: float,
+               ppot_val: float = 0.0, npot_val: float = 0.0,
+               aggression_val: float = 0.0, commitment_val: float = 0.0) -> str:
+        self._sim.input['hand_strength']        = float(np.clip(hand_strength_val, 0.01, 0.99))
+        self._sim.input['pot_odds']             = float(np.clip(pot_odds_val,      0.01, 0.99))
+        self._sim.input['position']             = float(np.clip(position_val,      0.01, 0.99))
+        self._sim.input['ppot']                 = float(np.clip(ppot_val,          0.01, 0.99))
+        self._sim.input['npot']                 = float(np.clip(npot_val,          0.01, 0.99))
+        self._sim.input['opponent_aggression']  = float(np.clip(aggression_val,    0.01, 0.99))
+        self._sim.input['stack_commitment']     = float(np.clip(commitment_val,    0.01, 0.99))
 
         try:
             self._sim.compute()
