@@ -24,7 +24,7 @@ def fetch_player_actions(game_id: int) -> list:
         """SELECT a.street, a.action_type, a.amount,
                   a.win_prob, a.pot_odds, a.ppot, a.npot,
                   a.opponent_aggression, a.stack_commitment,
-                  a.fuzzy_recommendation
+                  a.fuzzy_recommendation, a.recommended_action
            FROM actions a JOIN rounds r ON a.round_id = r.id
            WHERE r.game_id = ? AND a.actor = 'player'""",
         (game_id,),
@@ -39,7 +39,7 @@ def fetch_round_actions(round_id: int) -> list:
         """SELECT street, action_type, amount,
                   win_prob, pot_odds, ppot, npot,
                   opponent_aggression, stack_commitment,
-                  fuzzy_recommendation
+                  fuzzy_recommendation, recommended_action
            FROM actions
            WHERE round_id = ? AND actor = 'player'
            ORDER BY id""",

@@ -45,6 +45,7 @@ def test_system_player_decide_action_fills_last_fuzzy_data():
     assert set(system.last_fuzzy_data) == {
         'win_prob', 'pot_odds', 'position', 'ppot', 'npot',
         'opponent_aggression', 'stack_commitment', 'recommendation',
+        'recommended_action',
     }
     assert system.last_fuzzy_data['recommendation'] in ('fold', 'call', 'raise')
 

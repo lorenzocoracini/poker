@@ -257,7 +257,7 @@ elif status == 'ROUND_OVER':
                     'npot':            round(d['npot'], 2),
                     'agressividade_oponente': round(d['opponent_aggression'], 2),
                     'stack_commitment':       round(d['stack_commitment'], 2),
-                    'recomendado':     d['fuzzy_recommendation'],
+                    'recomendado':     d.get('recommended_action') or d['fuzzy_recommendation'],
                     'ação real':       d['action_type'],
                     'alinhamento':     f"{d['score'] * 100:.0f}%",
                 })

@@ -88,13 +88,13 @@ class GameRecorder:
                (round_id, street, actor, action_type, amount,
                 win_prob, pot_odds, position,
                 ppot, npot, opponent_aggression, stack_commitment,
-                fuzzy_recommendation)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                fuzzy_recommendation, recommended_action)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (self._round_id, self._street, actor, action_type, amount,
              fd.get('win_prob'), fd.get('pot_odds'), fd.get('position'),
              fd.get('ppot'), fd.get('npot'),
              fd.get('opponent_aggression'), fd.get('stack_commitment'),
-             fd.get('recommendation')),
+             fd.get('recommendation'), fd.get('recommended_action')),
         )
         conn.commit()
         conn.close()

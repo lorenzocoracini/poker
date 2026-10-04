@@ -49,9 +49,16 @@ def init_db():
             npot                 REAL,
             opponent_aggression  REAL,
             stack_commitment     REAL,
-            fuzzy_recommendation TEXT
+            fuzzy_recommendation TEXT,
+            recommended_action   TEXT
         );
     """)
+
+    # Lightweight migration for DBs created before `recommended_action` existed.
+    try:
+        cur.execute("ALTER TABLE actions ADD COLUMN recommended_action TEXT")
+    except sqlite3.OperationalError:
+        pass  # column already exists
 
     conn.commit()
     conn.close()

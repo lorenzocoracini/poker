@@ -57,12 +57,13 @@ def build_round_prompt(summary: dict) -> str:
         f"Nota média de alinhamento: {summary['nota_media']:.1f}%",
     ]
     for d in summary['decisoes']:
+        recomendado = d.get('recommended_action') or d['fuzzy_recommendation']
         lines.append(
             f"  - {d['street']}: win_prob={d['win_prob']:.2f} pot_odds={d['pot_odds']:.2f} "
             f"ppot={d['ppot']:.2f} npot={d['npot']:.2f} "
             f"agressividade_oponente={d['opponent_aggression']:.2f} "
             f"stack_commitment={d['stack_commitment']:.2f} "
-            f"→ recomendado={d['fuzzy_recommendation']} | ação real={d['action_type']} "
+            f"→ recomendado={recomendado} | ação real={d['action_type']} "
             f"(score={d['score']:.1f})"
         )
     lines.append("\nComente brevemente a decisão mais importante dessa rodada.")

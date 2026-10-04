@@ -2,7 +2,7 @@ import random
 from engine.config.game_parameters import INICIAL_BLIND, NUMBER_OF_ROUNDS_TO_RAISE_BLIND
 from engine.game.cards_distribution import cards_distribution
 from engine.game.hands_evaluation import evaluate_showdown
-from engine.players.system_player import SystemPlayer, compute_decision_features
+from engine.players.system_player import SystemPlayer, compute_decision_features, translate_recommendation
 from engine.players.user_player import UserPlayer
 from db.database import init_db
 from db.recorder import GameRecorder
@@ -205,7 +205,10 @@ class GameController:
             features['ppot'], features['npot'],
             features['opponent_aggression'], features['stack_commitment'],
         )
-        return {**features, 'recommendation': recommendation}
+        action = translate_recommendation(
+            recommendation, self.can_check, self.has_bet, self.to_call, self.player.stack,
+        )
+        return {**features, 'recommendation': recommendation, 'recommended_action': action}
 
     def apply_player_action(self, action: str, amount: int = 0) -> dict:
         if self.status != 'WAITING_PLAYER':

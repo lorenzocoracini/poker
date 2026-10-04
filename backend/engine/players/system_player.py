@@ -57,6 +57,21 @@ def compute_decision_features(hand: list, stack: int, game_state: dict) -> dict:
     }
 
 
+def translate_recommendation(recommendation: str, can_check: bool, has_bet: bool,
+                              to_call: int, stack: int) -> str:
+    """Maps the fuzzy agent's abstract fold/call/raise output onto the action
+    label actually available in this spot (ex: 'raise' -> 'bet' when nothing
+    has been wagered yet). Used both to pick the system's real action and to
+    label what a human *should* have done, for display/scoring purposes."""
+    if can_check and not has_bet:
+        return 'bet' if recommendation == 'raise' else 'check'
+    if to_call == 0:
+        return 'raise' if recommendation == 'raise' else 'check'
+    if to_call >= stack:
+        return 'fold' if recommendation == 'fold' else 'call'
+    return recommendation
+
+
 class SystemPlayer(Player):
     def __init__(self):
         super().__init__(name='System')
@@ -77,35 +92,24 @@ class SystemPlayer(Player):
             features['ppot'], features['npot'],
             features['opponent_aggression'], features['stack_commitment'],
         )
+        action = translate_recommendation(recommendation, can_check, has_bet, to_call, self.stack)
 
-        self.last_fuzzy_data = {**features, 'recommendation': recommendation}
+        self.last_fuzzy_data = {
+            **features, 'recommendation': recommendation, 'recommended_action': action,
+        }
 
         label = 'IN' if is_button else 'OUT'
         print(
             f"  [FUZZY] win={features['win_prob']:.2f} pot_odds={features['pot_odds']:.2f} pos={label} "
             f"ppot={features['ppot']:.2f} npot={features['npot']:.2f} aggr={features['opponent_aggression']:.2f} "
-            f"commit={features['stack_commitment']:.2f} → {recommendation}"
+            f"commit={features['stack_commitment']:.2f} → {recommendation} ({action})"
         )
 
         raise_amount = min(big_blind * 3, self.stack)
+        call_amount  = min(to_call, self.stack)
 
-        if can_check and not has_bet:
-            if recommendation == 'raise':
-                return ('bet', raise_amount)
-            return ('check', 0)
-
-        if to_call == 0:
-            if recommendation == 'raise':
-                return ('raise', raise_amount)
-            return ('check', 0)
-
-        if to_call >= self.stack:
-            if recommendation == 'fold':
-                return ('fold', 0)
-            return ('call', self.stack)
-
-        if recommendation == 'fold':
-            return ('fold', 0)
-        if recommendation == 'call':
-            return ('call', to_call)
-        return ('raise', raise_amount)
+        if action == 'check': return ('check', 0)
+        if action == 'bet':   return ('bet', raise_amount)
+        if action == 'raise': return ('raise', raise_amount)
+        if action == 'fold':  return ('fold', 0)
+        return ('call', call_amount)
