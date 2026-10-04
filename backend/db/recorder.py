@@ -23,6 +23,10 @@ class GameRecorder:
     def game_id(self):
         return self._game_id
 
+    @property
+    def round_id(self):
+        return self._round_id
+
     def start_game(self):
         conn = get_connection()
         cur  = conn.cursor()

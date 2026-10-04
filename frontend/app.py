@@ -4,8 +4,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
 import streamlit as st
 from engine.game.controller import GameController
-from feedback.session_report import summarize_session
-from feedback.llm_client import generate_feedback
+from feedback.session_report import summarize_session, summarize_round
+from feedback.llm_client import generate_feedback, generate_round_feedback
 
 st.set_page_config(page_title='Poker Agent', page_icon='🃏', layout='wide')
 
@@ -46,9 +46,10 @@ def render_hand(cards, hidden=False) -> str:
 # ── Session state init ────────────────────────────────────────────────────────
 
 if 'ctrl' not in st.session_state:
-    st.session_state.ctrl            = None
-    st.session_state.game_ended      = False
-    st.session_state.feedback_result = None
+    st.session_state.ctrl                  = None
+    st.session_state.game_ended            = False
+    st.session_state.feedback_result       = None
+    st.session_state.round_feedback_result = None
 
 ctrl  = st.session_state.ctrl
 state = ctrl.get_state() if ctrl else None
@@ -114,9 +115,10 @@ if ctrl is None:
     if st.button('🎴 Nova Partida', type='primary', use_container_width=True):
         c = GameController()
         c.start_new_round()
-        st.session_state.ctrl            = c
-        st.session_state.game_ended      = False
-        st.session_state.feedback_result = None
+        st.session_state.ctrl                  = c
+        st.session_state.game_ended            = False
+        st.session_state.feedback_result       = None
+        st.session_state.round_feedback_result = None
         st.rerun()
     st.stop()
 
@@ -226,8 +228,56 @@ elif status == 'ROUND_OVER':
             st.caption(f'Sua mão: **{p_desc}**  |  Sistema: **{s_desc}**')
 
     st.divider()
+
+    if st.button('📊 Ver feedback da rodada', use_container_width=True):
+        try:
+            round_id = ctrl.recorder.round_id
+            summary  = summarize_round(round_id)
+            with st.spinner('Gerando feedback...'):
+                texto = generate_round_feedback(summary) if summary['total_decisoes'] else ''
+            st.session_state.round_feedback_result = (summary, texto)
+        except Exception as e:
+            st.warning(f'Não foi possível gerar o feedback da rodada: {e}')
+
+    if st.session_state.round_feedback_result:
+        summary, texto = st.session_state.round_feedback_result
+        if summary['total_decisoes'] > 0:
+            st.metric('Nota de alinhamento (rodada)', f"{summary['nota_media']:.1f}%")
+
+            street_count = {}
+            tabela = []
+            for d in summary['decisoes']:
+                street_count[d['street']] = street_count.get(d['street'], 0) + 1
+                tabela.append({
+                    'street':          d['street'],
+                    'decisão nº':      street_count[d['street']],
+                    'win_prob':        round(d['win_prob'], 2),
+                    'pot_odds':        round(d['pot_odds'], 2),
+                    'ppot':            round(d['ppot'], 2),
+                    'npot':            round(d['npot'], 2),
+                    'agressividade_oponente': round(d['opponent_aggression'], 2),
+                    'stack_commitment':       round(d['stack_commitment'], 2),
+                    'recomendado':     d['fuzzy_recommendation'],
+                    'ação real':       d['action_type'],
+                    'alinhamento':     f"{d['score'] * 100:.0f}%",
+                })
+            st.dataframe(tabela, use_container_width=True, hide_index=True)
+            st.caption(
+                '"decisão nº" conta suas decisões dentro da mesma street — mais de uma '
+                'acontece quando o sistema aumenta a aposta e você decide de novo '
+                '(ex: check seu, raise do sistema, call/fold seu). "alinhamento": '
+                '100% = igual à recomendação do agente fuzzy, 50% = parcialmente '
+                'alinhado (ex: call quando era pra foldar), 0% = oposto '
+                '(ex: raise quando era pra foldar).'
+            )
+            st.markdown(texto)
+        else:
+            st.caption('Nenhuma decisão avaliável nesta rodada.')
+
+    st.divider()
     if st.button('▶ Próxima Rodada', type='primary', use_container_width=True):
         ctrl.start_new_round()
+        st.session_state.round_feedback_result = None
         st.rerun()
 
 elif status == 'GAME_OVER':
@@ -269,7 +319,8 @@ elif status == 'GAME_OVER':
     if st.button('🎴 Novo Jogo', type='primary', use_container_width=True):
         c = GameController()
         c.start_new_round()
-        st.session_state.ctrl            = c
-        st.session_state.game_ended      = False
-        st.session_state.feedback_result = None
+        st.session_state.ctrl                  = c
+        st.session_state.game_ended            = False
+        st.session_state.feedback_result       = None
+        st.session_state.round_feedback_result = None
         st.rerun()

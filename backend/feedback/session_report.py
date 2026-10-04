@@ -33,6 +33,40 @@ def fetch_player_actions(game_id: int) -> list:
     return [dict(row) for row in rows]
 
 
+def fetch_round_actions(round_id: int) -> list:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT street, action_type, amount,
+                  win_prob, pot_odds, ppot, npot,
+                  opponent_aggression, stack_commitment,
+                  fuzzy_recommendation
+           FROM actions
+           WHERE round_id = ? AND actor = 'player'
+           ORDER BY id""",
+        (round_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def summarize_round(round_id: int) -> dict:
+    actions = fetch_round_actions(round_id)
+
+    scored = [
+        {**a, 'score': score_decision(a['fuzzy_recommendation'], a['action_type'])}
+        for a in actions if a['fuzzy_recommendation'] is not None
+    ]
+
+    total      = len(scored)
+    nota_media = (sum(s['score'] for s in scored) / total * 100) if total else 0.0
+
+    return {
+        'total_decisoes': total,
+        'nota_media':     nota_media,
+        'decisoes':       scored,
+    }
+
+
 def summarize_session(game_id: int) -> dict:
     actions = fetch_player_actions(game_id)
 
