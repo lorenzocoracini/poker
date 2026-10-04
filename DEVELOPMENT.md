@@ -24,7 +24,8 @@ pip install -r backend/requirements.txt
 
 Dependências principais (`backend/requirements.txt`): `treys` (avaliação de mãos),
 `scikit-fuzzy` + `numpy` + `scipy` + `networkx` (motor fuzzy), `streamlit`
-(interface), `pytest` + `pytest-asyncio` (testes).
+(interface), `pytest` + `pytest-asyncio` (testes), `anthropic` + `python-dotenv`
+(feedback pós-jogo — ver seção 6).
 
 ### Rodar a aplicação (frontend Streamlit)
 
@@ -149,7 +150,7 @@ que é a fonte de verdade e deve ser mantido em sincronia com `fuzzy_agent.py`.
 | `position` | binária: `1.0` se o agente é o button (in position), `0.0` se é big blind (out of position) | `fora`, `dentro` |
 | `ppot` | `calculate_hand_potential()`: Monte Carlo classificando ahead/behind/tied antes e depois do board completar (Billings 2006). Só calculada no flop/turn; `0.0` no pré-flop/river | `baixo`, `medio`, `alto` |
 | `npot` | Idem `ppot` (mesma função, retorna a tupla), mas medindo o risco de uma mão à frente terminar atrás | `baixo`, `medio`, `alto` |
-| `opponent_aggression` | `SystemPlayer._opponent_aggression()`: combinação ponderada de última ação do humano + nº de raises nesta street + nº de raises em streets anteriores (rastreados no `GameController`) | `passivo`, `moderado`, `agressivo` |
+| `opponent_aggression` | `_opponent_aggression()` (função module-level em `system_player.py`): combinação ponderada de última ação do humano + nº de raises nesta street + nº de raises em streets anteriores (rastreados no `GameController`) | `passivo`, `moderado`, `agressivo` |
 | `stack_commitment` | `pot / (pot + stack_do_agente)` — proxy de SPR (stack-to-pot ratio) | `baixo`, `medio`, `alto` |
 
 ### Funções de pertinência (parâmetros exatos)
@@ -229,7 +230,10 @@ Tabela completa das 28 regras: ver `FUZZY_LOGIC.md`.
 - Toda decisão do agente fica registrada em `SystemPlayer.last_fuzzy_data` e
   persistida via `GameRecorder.record_action()` na tabela `actions`
   (colunas `win_prob`, `pot_odds`, `position`, `ppot`, `npot`,
-  `opponent_aggression`, `stack_commitment`, `fuzzy_recommendation`).
+  `opponent_aggression`, `stack_commitment`, `fuzzy_recommendation`). Desde a
+  seção 6, essas mesmas colunas também são preenchidas para `actor='player'`,
+  usando a avaliação de referência do próprio agente fuzzy do sistema
+  (`GameController._evaluate_player_action()`).
 - Esse dataset é o ponto de partida natural para treinar/ajustar o componente
   de aprendizado de máquina mencionado no `CLAUDE.md` da raiz (Fase 2).
 - Alterações nas funções de pertinência ou nas regras devem ser feitas em
@@ -278,3 +282,55 @@ disponível (`SystemPlayer.decide_action`, `raise_amount = min(big_blind * 3, se
 > confirmar título/ano exatos e adequação ao referencial teórico do TCC antes de citar
 > na escrita. O paper Ekmekci & Şirin (2013) e a citação de Billings 2006 dentro dele
 > **foram lidos integralmente** nesta sessão (ver `PLANO_EXPANSAO_FUZZY.md`).
+
+---
+
+## 6. Feedback pós-jogo (API do Claude)
+
+Ao final de uma partida (`status == 'GAME_OVER'`), a interface oferece o botão
+"📝 Gerar feedback da partida", que compara as decisões do jogador humano com o
+que o próprio agente fuzzy do sistema teria recomendado, e usa a API do Claude
+para transformar essa comparação num texto de feedback em português.
+
+### Como funciona
+
+A cada ação do jogador humano, `GameController._evaluate_player_action()`
+monta o `game_state` da perspectiva do jogador (espelhando o que já é feito
+para o sistema em `_apply_system_action`) e chama
+`compute_decision_features()` + `self.system.fuzzy_agent.decide(...)` — a
+mesma infraestrutura usada para decidir a jogada do próprio sistema, só que em
+modo somente leitura: o resultado é gravado na tabela `actions` (colunas
+`win_prob`, `ppot`, `npot`, `opponent_aggression`, `stack_commitment`,
+`fuzzy_recommendation`), mas não influencia a jogada de ninguém.
+
+Ao clicar no botão de feedback (`backend/feedback/`):
+
+1. `session_report.summarize_session(game_id)` busca todas as linhas
+   `actor='player'` da partida e calcula, pra cada uma,
+   `score_decision(recomendado, real)` — escala ordinal `fold < call/check <
+   bet/raise/allin`, onde acerto exato = 1.0, ação adjacente = 0.5, oposta =
+   0.0. Agrega numa nota média (0-100%), um breakdown por street e alguns
+   padrões objetivos (ex.: quantas vezes foldou quando a recomendação era
+   raise).
+2. `llm_client.generate_feedback(summary)` manda essas estatísticas (só os
+   números, sem inventar detalhes de mãos) pro modelo `claude-haiku-4-5-20251001`
+   via `anthropic.Anthropic()`, pedindo um texto curto em português.
+
+### Configuração
+
+```bash
+cp .env.example .env
+```
+
+Preencher `ANTHROPIC_API_KEY` no `.env` (não versionado — já no `.gitignore`).
+Sem a chave, ou em caso de falha de rede, o botão mostra um aviso (`st.warning`)
+em vez de quebrar a interface.
+
+### Limitação importante
+
+A nota de alinhamento mede o quanto o jogador jogou de acordo com a **política
+do próprio agente fuzzy implementado neste projeto** — não é uma medida de
+jogo "ótimo" externo (GTO) nem vem de uma fonte validada fora do TCC. As
+funções de pertinência e regras do `FuzzyPokerAgent` têm breakpoints de
+engenharia própria (ver seção 3) ainda não calibrados por ML — a nota reflete
+esse estágio do agente, não uma referência absoluta de habilidade em poker.

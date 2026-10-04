@@ -4,6 +4,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
 import streamlit as st
 from engine.game.controller import GameController
+from feedback.session_report import summarize_session
+from feedback.llm_client import generate_feedback
 
 st.set_page_config(page_title='Poker Agent', page_icon='🃏', layout='wide')
 
@@ -44,8 +46,9 @@ def render_hand(cards, hidden=False) -> str:
 # ── Session state init ────────────────────────────────────────────────────────
 
 if 'ctrl' not in st.session_state:
-    st.session_state.ctrl       = None
-    st.session_state.game_ended = False
+    st.session_state.ctrl            = None
+    st.session_state.game_ended      = False
+    st.session_state.feedback_result = None
 
 ctrl  = st.session_state.ctrl
 state = ctrl.get_state() if ctrl else None
@@ -111,8 +114,9 @@ if ctrl is None:
     if st.button('🎴 Nova Partida', type='primary', use_container_width=True):
         c = GameController()
         c.start_new_round()
-        st.session_state.ctrl       = c
-        st.session_state.game_ended = False
+        st.session_state.ctrl            = c
+        st.session_state.game_ended      = False
+        st.session_state.feedback_result = None
         st.rerun()
     st.stop()
 
@@ -236,9 +240,36 @@ elif status == 'GAME_OVER':
     else:
         st.success('🏆 Você venceu o jogo! Sistema ficou sem fichas.')
 
+    st.divider()
+
+    if st.button('📝 Gerar feedback da partida', use_container_width=True):
+        try:
+            game_id = ctrl.recorder.game_id
+            summary = summarize_session(game_id)
+            with st.spinner('Gerando feedback...'):
+                texto = generate_feedback(summary)
+            st.session_state.feedback_result = (summary, texto)
+        except Exception as e:
+            st.warning(
+                'Não foi possível gerar o feedback (verifique a chave '
+                f'ANTHROPIC_API_KEY no .env ou a conexão): {e}'
+            )
+
+    if st.session_state.feedback_result:
+        summary, texto = st.session_state.feedback_result
+        st.metric('Nota de alinhamento', f"{summary['nota_media']:.1f}%")
+        st.caption(
+            'Mede alinhamento com a política do próprio agente fuzzy do sistema, '
+            'não um "ótimo" externo (GTO).'
+        )
+        st.markdown(texto)
+
+    st.divider()
+
     if st.button('🎴 Novo Jogo', type='primary', use_container_width=True):
         c = GameController()
         c.start_new_round()
-        st.session_state.ctrl       = c
-        st.session_state.game_ended = False
+        st.session_state.ctrl            = c
+        st.session_state.game_ended      = False
+        st.session_state.feedback_result = None
         st.rerun()

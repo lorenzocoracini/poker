@@ -2,7 +2,7 @@ import random
 from engine.config.game_parameters import INICIAL_BLIND, NUMBER_OF_ROUNDS_TO_RAISE_BLIND
 from engine.game.cards_distribution import cards_distribution
 from engine.game.hands_evaluation import evaluate_showdown
-from engine.players.system_player import SystemPlayer
+from engine.players.system_player import SystemPlayer, compute_decision_features
 from engine.players.user_player import UserPlayer
 from db.database import init_db
 from db.recorder import GameRecorder
@@ -179,10 +179,39 @@ class GameController:
         action, amount = self.system.decide_action(gs)
         self._apply_action('system', action, amount, self.system.last_fuzzy_data)
 
+    def _evaluate_player_action(self) -> dict:
+        """Reference evaluation of the human's decision against the system's own
+        fuzzy agent — read-only, does not influence _apply_action or the system's play."""
+        raises_this_street = sum(
+            1 for actor, act in self._actions_this_street
+            if actor == 'system' and act in ('bet', 'raise', 'allin')
+        )
+        gs = {
+            'community_cards': self._community_cards(),
+            'pot':       self.pot,
+            'to_call':   self.to_call,
+            'can_check': self.can_check,
+            'has_bet':   self.has_bet,
+            'is_button': self.button == 'player',
+            'big_blind': self.blind * 2,
+            'street':                     self.street,
+            'last_player_action':         self._last_system_action[0] if self._last_system_action else None,
+            'player_raises_this_street':  raises_this_street,
+            'player_raises_prev_streets': self._raises_prev_streets.get('system', 0),
+        }
+        features = compute_decision_features(self.player.hand, self.player.stack, gs)
+        recommendation = self.system.fuzzy_agent.decide(
+            features['win_prob'], features['pot_odds'], features['position'],
+            features['ppot'], features['npot'],
+            features['opponent_aggression'], features['stack_commitment'],
+        )
+        return {**features, 'recommendation': recommendation}
+
     def apply_player_action(self, action: str, amount: int = 0) -> dict:
         if self.status != 'WAITING_PLAYER':
             return self.get_state()
-        self._apply_action('player', action, amount)
+        evaluation = self._evaluate_player_action()
+        self._apply_action('player', action, amount, evaluation)
         return self._advance_until_player()
 
     # ── Action logic ──────────────────────────────────────────────────────────

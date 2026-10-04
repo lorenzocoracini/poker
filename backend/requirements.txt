@@ -6,3 +6,5 @@ networkx
 streamlit
 pytest
 pytest-asyncio
+anthropic
+python-dotenv

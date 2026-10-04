@@ -19,6 +19,10 @@ class GameRecorder:
         self._round_id = None
         self._street   = None
 
+    @property
+    def game_id(self):
+        return self._game_id
+
     def start_game(self):
         conn = get_connection()
         cur  = conn.cursor()
