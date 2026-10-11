@@ -37,7 +37,7 @@ class FuzzyPokerAgent:
 
         # --- Funções de pertinência: ppot / npot (potencial positivo/negativo — Billings 2006) ---
         # NOTA: breakpoints são estimativas de engenharia (não vêm de literatura), a
-        # recalibrar na etapa de tuning por ML (ver PLANO_EXPANSAO_FUZZY.md).
+        # recalibrar na etapa de tuning por ML (ver FUZZY_LOGIC.md).
         ppot['baixo'] = fuzz.trapmf(ppot.universe, [0,    0,    0.15, 0.30])
         ppot['medio'] = fuzz.trimf( ppot.universe, [0.20, 0.35, 0.50])
         ppot['alto']  = fuzz.trapmf(ppot.universe, [0.40, 0.55, 1.00, 1.00])

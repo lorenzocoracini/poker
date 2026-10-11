@@ -3,7 +3,7 @@ from engine.fuzzy.fuzzy_agent import FuzzyPokerAgent
 from engine.fuzzy.hand_strength import calculate_win_probability, calculate_hand_potential
 
 # Heurísticas de composição do sinal de agressividade do oponente — engenharia própria,
-# a recalibrar na etapa de tuning por ML (ver PLANO_EXPANSAO_FUZZY.md).
+# a recalibrar na etapa de tuning por ML (ver FUZZY_LOGIC.md).
 _LAST_ACTION_WEIGHT = {
     'raise': 1.0, 'bet': 1.0, 'allin': 1.0,
     'call':  0.4,
