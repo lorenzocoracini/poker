@@ -18,6 +18,13 @@ def score_decision(recommended: str, actual: str) -> float:
     return 1 - abs(rec_ord - act_ord) / 2
 
 
+def _effective_recommendation(action: dict) -> str:
+    """Spot-specific recommendation (ex: 'fold' -> 'check' when nothing is bet).
+    Falls back to the abstract fuzzy output for rows recorded before
+    `recommended_action` existed."""
+    return action.get('recommended_action') or action['fuzzy_recommendation']
+
+
 def fetch_player_actions(game_id: int) -> list:
     conn = get_connection()
     rows = conn.execute(
@@ -53,7 +60,7 @@ def summarize_round(round_id: int) -> dict:
     actions = fetch_round_actions(round_id)
 
     scored = [
-        {**a, 'score': score_decision(a['fuzzy_recommendation'], a['action_type'])}
+        {**a, 'score': score_decision(_effective_recommendation(a), a['action_type'])}
         for a in actions if a['fuzzy_recommendation'] is not None
     ]
 
@@ -71,7 +78,7 @@ def summarize_session(game_id: int) -> dict:
     actions = fetch_player_actions(game_id)
 
     scored = [
-        {**a, 'score': score_decision(a['fuzzy_recommendation'], a['action_type'])}
+        {**a, 'score': score_decision(_effective_recommendation(a), a['action_type'])}
         for a in actions if a['fuzzy_recommendation'] is not None
     ]
 

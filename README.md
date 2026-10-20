@@ -1,14 +1,13 @@
-# Poker Heads-Up — Agente Fuzzy Adaptativo
+# Poker Heads-Up — Agente Fuzzy com Feedback via LLM
 
-Implementação do TCC *"Desenvolvimento de um agente inteligente adaptativo para poker
-baseado em lógica fuzzy e aprendizado de máquina"* (Lorenzo Coracini — Sistemas de
-Informação, UFSC).
+Implementação do TCC *"Um agente inteligente baseado em lógica fuzzy para jogar e
+avaliar decisões no poker heads-up"* (Lorenzo Coracini — Sistemas de Informação, UFSC).
 
 Jogo de **Texas Hold'em heads-up** (humano vs. agente) com interface Streamlit. O
 agente decide com um **sistema de inferência fuzzy Mamdani** de 7 entradas; cada
-decisão — do agente e do humano — é registrada em SQLite, formando o dataset para a
-fase de aprendizado de máquina. Ao fim de cada rodada e da partida, o humano recebe
-feedback comparando suas jogadas com o que o agente recomendaria.
+decisão — do agente e do humano — é registrada em SQLite. O mesmo sistema fuzzy avalia
+as jogadas do humano e, ao fim de cada rodada e da partida, um LLM gera feedback em
+linguagem natural comparando essas jogadas com o que o agente recomendaria.
 
 | Documento | Conteúdo |
 |---|---|
@@ -26,7 +25,6 @@ feedback comparando suas jogadas com o que o agente recomendaria.
 | Agente fuzzy — expansão para 7 entradas (PPot, NPot, agressividade, comprometimento) | ✅ |
 | Persistência de todas as decisões em SQLite | ✅ |
 | Avaliação das jogadas do humano pelo agente + feedback por rodada e por partida (API do Claude) | ✅ |
-| **Fase 2:** calibração / aprendizado de máquina sobre o dataset coletado | ⏳ pendente |
 
 ---
 
@@ -242,7 +240,9 @@ mesma situação.
 ### Pontuação (`feedback/session_report.py`)
 
 `score_decision(recomendado, real)` projeta as ações numa escala ordinal
-`fold (0) < check/call (1) < bet/raise/allin (2)`:
+`fold (0) < check/call (1) < bet/raise/allin (2)`. O `recomendado` é a recomendação
+já traduzida para o spot (`recommended_action`; ex.: `fold` vira `check` quando não há
+aposta a pagar), com fallback para `fuzzy_recommendation` em registros antigos:
 
 | Diferença | Score | Exemplo |
 |---|---|---|
@@ -291,9 +291,8 @@ Botão **"📝 Gerar feedback da partida"** → `summarize_session(game_id)`:
 
 ## 8. Interface (`frontend/app.py`)
 
-- **Sidebar**: rodada, pot, blinds, street, button, stacks com barra de progresso,
-  **última decisão fuzzy do agente** (win prob, pot odds, PPot, NPot, agressividade,
-  comprometimento, recomendação) e log da partida.
+- **Sidebar**: rodada, pot, blinds, street, button e stacks com barra de progresso.
+  Não mostra dados da decisão fuzzy do agente, para não revelar a força da mão dele.
 - **Área principal**: board, mão do jogador, mão do sistema (oculta até o fim da
   rodada), última ação do sistema e botões de ação válidos.
 - **Fim de rodada / partida**: resultado, descrição das mãos no showdown, botões de
@@ -314,10 +313,11 @@ Botão **"📝 Gerar feedback da partida"** → `summarize_session(game_id)`:
 
 ---
 
-## 10. Próximos passos (Fase 2 — ML)
+## 10. Trabalhos futuros
 
-O dataset na tabela `actions` (7 features + recomendação + ação real, para os dois
-jogadores, ligado ao resultado em `rounds`) permite:
+A fase de aprendizado de máquina prevista originalmente saiu do escopo do TCC. O
+registro na tabela `actions` (7 features + recomendação + ação real, para os dois
+jogadores, ligado ao resultado em `rounds`) fica como base para trabalhos futuros:
 
 - Calibrar automaticamente os breakpoints das funções de pertinência, limiares de
   defuzzificação e pesos de `opponent_aggression` (lista completa na seção 10 do

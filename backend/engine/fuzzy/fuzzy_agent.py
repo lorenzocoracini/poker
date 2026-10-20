@@ -18,7 +18,8 @@ class FuzzyPokerAgent:
         stack_commitment    = ctrl.Antecedent(np.arange(0, 1.01, 0.01), 'stack_commitment')
 
         # --- Consequente ---
-        action_score  = ctrl.Consequent(np.arange(0, 1.01, 0.01), 'action_score')
+        action_score  = ctrl.Consequent(np.arange(0, 1.01, 0.01), 'action_score',
+                                      defuzzify_method='centroid')
 
         # --- Funções de pertinência: hand_strength ---
         hand_strength['fraca']       = fuzz.trapmf(hand_strength.universe, [0,    0,    0.30, 0.45])

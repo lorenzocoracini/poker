@@ -220,8 +220,8 @@ Ekmekci & Şirin (2013), que medem a aposta só da fase atual.
 
 > **Sinalização:** os breakpoints das funções de pertinência das 4 variáveis novas, e
 > os pesos/caps de `opponent_aggression`, são **estimativas de engenharia** — não vêm
-> de literatura (o paper de referência não usa lógica fuzzy). São o ponto de partida
-> para a calibração por aprendizado de máquina (Fase 2).
+> de literatura (o paper de referência não usa lógica fuzzy). Uma calibração
+> sistemática fica como trabalho futuro (seção 10).
 
 ---
 
@@ -393,7 +393,7 @@ sugeriria naquele spot.
 
 ---
 
-## 7. Dados registrados para ML
+## 7. Dados registrados
 
 A cada decisão, o dicionário de features + recomendação é gravado na tabela `actions`
 do SQLite via `GameRecorder.record_action()` — **tanto para o sistema
@@ -414,11 +414,12 @@ do SQLite via `GameRecorder.record_action()` — **tanto para o sistema
 ```
 
 Para o sistema, esse dicionário fica também em `SystemPlayer.last_fuzzy_data`
-(exibido na sidebar da interface) e cada decisão imprime no terminal uma linha
+e cada decisão imprime no terminal uma linha
 `[FUZZY] win=... pot_odds=... pos=IN|OUT ppot=... npot=... aggr=... commit=... → rec (ação)`.
 
-Esse dataset (entradas + recomendação + ação real + resultado da rodada) é a base
-para a Fase 2: calibrar os parâmetros das funções de pertinência e/ou das regras.
+Esses registros (entradas + recomendação + ação real + resultado da rodada) alimentam
+a avaliação do jogador (seção 9) e servem de base para uma eventual calibração dos
+parâmetros das funções de pertinência e/ou das regras (seção 10).
 
 ---
 
@@ -433,9 +434,9 @@ de **Ekmekci & Şirin (2013)**, que também trata heads-up limit Texas Hold'em e
 | Feature(s) no paper | Seleção na Table 5 (de 8) | Variável fuzzy |
 |---|---|---|
 | #2 PPot | 6/8 | `ppot` |
-| #3 NPot | 6/8 | `npot` |
+| #3 NPot | 7/8 | `npot` |
 | #6, #9, #10, #14, #15 — última ação e nº de raises (street atual e anteriores) | #14 em **8/8** (a mais consistente do paper) | `opponent_aggression` (composta) |
-| #7, #8 — stack comprometido no round | 5/8 | `stack_commitment` (adaptada para SPR) |
+| #7, #8 — stack comprometido no round (#7 próprio, #8 do adversário) | #8 em 5/8; #7 em 0/8 | `stack_commitment` (adaptada para SPR) |
 
 Descartadas:
 
@@ -468,16 +469,20 @@ simulação Monte Carlo extra por decisão do humano.
 
 A pontuação (`feedback/session_report.py:score_decision`) projeta as ações numa escala
 ordinal `fold (0) < check/call (1) < bet/raise/allin (2)` e compara com a
-recomendação: igual = 1.0, adjacente = 0.5, oposta = 0.0.
+recomendação **já traduzida para o spot** (`recommended_action`; ex.: `fold` vira
+`check` quando não há aposta a pagar): igual = 1.0, adjacente = 0.5, oposta = 0.0.
+Registros antigos sem `recommended_action` usam a saída abstrata
+(`fuzzy_recommendation`) como fallback.
 
 > **Limitação:** a nota mede alinhamento com a política **deste** agente fuzzy, cujos
 > parâmetros ainda não foram calibrados — não é uma medida de jogo ótimo (GTO).
 
 ---
 
-## 10. Pontos de calibração (Fase 2)
+## 10. Pontos de calibração (trabalho futuro)
 
-Parâmetros candidatos a ajuste automático:
+A fase de aprendizado de máquina saiu do escopo do TCC. Parâmetros candidatos a um
+ajuste automático futuro:
 
 - Breakpoints das funções de pertinência das 7 entradas e da saída.
 - Limiares de defuzzificação (0.35 / 0.65).

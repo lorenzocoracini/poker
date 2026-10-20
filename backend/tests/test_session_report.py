@@ -50,15 +50,17 @@ def _insert_game_and_round(db_module):
     return game_id, round_id
 
 
-def _insert_action(db_module, round_id, street, action_type, win_prob, recommendation):
+def _insert_action(db_module, round_id, street, action_type, win_prob, recommendation,
+                   recommended_action=None):
     conn = db_module.get_connection()
     conn.execute(
         """INSERT INTO actions
            (round_id, street, actor, action_type, amount,
             win_prob, pot_odds, position, ppot, npot,
-            opponent_aggression, stack_commitment, fuzzy_recommendation)
-           VALUES (?, ?, 'player', ?, 0, ?, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, ?)""",
-        (round_id, street, action_type, win_prob, recommendation),
+            opponent_aggression, stack_commitment, fuzzy_recommendation,
+            recommended_action)
+           VALUES (?, ?, 'player', ?, 0, ?, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, ?, ?)""",
+        (round_id, street, action_type, win_prob, recommendation, recommended_action),
     )
     conn.commit()
     conn.close()
@@ -89,6 +91,16 @@ def test_summarize_session_detects_weak_hand_continuation(temp_db):
 
     summary = summarize_session(game_id)
     assert summary['padroes']['continuou_mao_fraca_win_prob_abaixo_0_35'] == 1
+
+
+def test_summarize_session_scores_against_translated_recommendation(temp_db):
+    # Fuzzy 'fold' with nothing to call is translated to 'check'; a player who
+    # checks followed the recommendation and must get full marks.
+    game_id, round_id = _insert_game_and_round(temp_db)
+    _insert_action(temp_db, round_id, 'preflop', 'check', 0.3, 'fold', 'check')
+
+    summary = summarize_session(game_id)
+    assert summary['nota_media'] == 100.0
 
 
 def test_summarize_session_empty_game_returns_zero_total(temp_db):
