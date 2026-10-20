@@ -59,7 +59,7 @@ state = ctrl.get_state() if ctrl else None
 
 with st.sidebar:
     st.title('🃏 Poker Agent')
-    st.caption('Texas Hold\'em Heads-Up — TCC Lorenzo Coracini')
+    st.caption('Texas Hold\'em Heads-Up')
     st.divider()
 
     if ctrl and state:
@@ -79,29 +79,8 @@ with st.sidebar:
         st.write('**Fichas**')
         st.write(f'👤 Você: **{state["player_stack"]}**')
         st.progress(max(0.0, min(state['player_stack'] / safe, 1.0)))
-        st.write(f'🤖 Sistema: **{state["system_stack"]}**')
+        st.write(f'🧠 Sistema: **{state["system_stack"]}**')
         st.progress(max(0.0, min(state['system_stack'] / safe, 1.0)))
-        st.divider()
-
-        # Fuzzy insight (valor para o TCC)
-        fuzzy = getattr(ctrl.system, 'last_fuzzy_data', {})
-        if fuzzy:
-            st.write('**Última decisão fuzzy**')
-            st.write(f"Win prob: `{fuzzy.get('win_prob', 0):.1%}`")
-            st.write(f"Pot odds: `{fuzzy.get('pot_odds', 0):.1%}`")
-            st.write(f"PPot: `{fuzzy.get('ppot', 0):.1%}`")
-            st.write(f"NPot: `{fuzzy.get('npot', 0):.1%}`")
-            st.write(f"Agressividade oponente: `{fuzzy.get('opponent_aggression', 0):.1%}`")
-            st.write(f"Stack committed: `{fuzzy.get('stack_commitment', 0):.1%}`")
-            rec = fuzzy.get('recommendation', '—')
-            color = {'fold': '🔴', 'call': '🟡', 'raise': '🟢'}.get(rec, '⚪')
-            st.write(f"Recomendação: {color} **{rec}**")
-            st.divider()
-
-        st.write('**Log**')
-        log_text = '\n'.join(reversed(state['log']))
-        st.text_area('', value=log_text, height=260,
-                     disabled=True, label_visibility='collapsed')
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -156,7 +135,7 @@ ACTION_LABELS = {
 }
 
 with col_s:
-    st.markdown('#### 🤖 Sistema')
+    st.markdown('#### 🧠 Sistema')
     st.markdown(render_hand(state['system_hand'], hidden=not reveal_system),
                 unsafe_allow_html=True)
     if reveal_system and state.get('system_hand_desc'):
@@ -244,32 +223,63 @@ elif status == 'ROUND_OVER':
         if summary['total_decisoes'] > 0:
             st.metric('Nota de alinhamento (rodada)', f"{summary['nota_media']:.1f}%")
 
+            street_pt = {'preflop': 'Pré-flop', 'flop': 'Flop', 'turn': 'Turn', 'river': 'River'}
+            action_pt = {
+                'fold': 'Desistir (fold)', 'check': 'Passar (check)', 'call': 'Pagar (call)',
+                'bet': 'Apostar (bet)', 'raise': 'Aumentar (raise)', 'allin': 'All-in',
+            }
+            alinhamento_pt = {1.0: '✅ Alinhada', 0.5: '🟡 Parcial', 0.0: '❌ Oposta'}
+
             street_count = {}
-            tabela = []
+            resumo, detalhes = [], []
             for d in summary['decisoes']:
                 street_count[d['street']] = street_count.get(d['street'], 0) + 1
-                tabela.append({
-                    'street':          d['street'],
-                    'decisão nº':      street_count[d['street']],
-                    'win_prob':        round(d['win_prob'], 2),
-                    'pot_odds':        round(d['pot_odds'], 2),
-                    'ppot':            round(d['ppot'], 2),
-                    'npot':            round(d['npot'], 2),
-                    'agressividade_oponente': round(d['opponent_aggression'], 2),
-                    'stack_commitment':       round(d['stack_commitment'], 2),
-                    'recomendado':     d.get('recommended_action') or d['fuzzy_recommendation'],
-                    'ação real':       d['action_type'],
-                    'alinhamento':     f"{d['score'] * 100:.0f}%",
+                momento = street_pt.get(d['street'], d['street'])
+                if street_count[d['street']] > 1:
+                    momento += f" ({street_count[d['street']]}ª decisão)"
+                recomendado = d.get('recommended_action') or d['fuzzy_recommendation']
+                resumo.append({
+                    'Momento':               momento,
+                    'Sua jogada':            action_pt.get(d['action_type'], d['action_type']),
+                    'Recomendação do agente': action_pt.get(recomendado, recomendado),
+                    'Avaliação':             alinhamento_pt.get(d['score'], f"{d['score'] * 100:.0f}%"),
                 })
-            st.dataframe(tabela, use_container_width=True, hide_index=True)
-            st.caption(
-                '"decisão nº" conta suas decisões dentro da mesma street — mais de uma '
-                'acontece quando o sistema aumenta a aposta e você decide de novo '
-                '(ex: check seu, raise do sistema, call/fold seu). "alinhamento": '
-                '100% = igual à recomendação do agente fuzzy, 50% = parcialmente '
-                'alinhado (ex: call quando era pra foldar), 0% = oposto '
-                '(ex: raise quando era pra foldar).'
-            )
+                detalhes.append({
+                    'Momento':        momento,
+                    'Chance de vitória': d['win_prob'] * 100,
+                    'Pot odds':          d['pot_odds'] * 100,
+                    'Chance de melhorar': d['ppot'] * 100,
+                    'Risco de piorar':    d['npot'] * 100,
+                    'Agressividade do agente': d['opponent_aggression'] * 100,
+                    'Fichas comprometidas':    d['stack_commitment'] * 100,
+                })
+
+            st.dataframe(resumo, use_container_width=True, hide_index=True)
+
+            pct = lambda help_text: st.column_config.NumberColumn(format='%.0f%%', help=help_text)
+            with st.expander('🔍 Ver os números que o agente usou para avaliar'):
+                st.dataframe(
+                    detalhes, use_container_width=True, hide_index=True,
+                    column_config={
+                        'Chance de vitória': pct(
+                            'Probabilidade estimada de sua mão vencer agora (simulação Monte Carlo).'),
+                        'Pot odds': pct(
+                            'Quanto você precisa pagar em relação ao pot total. '
+                            'Se for menor que a chance de vitória, pagar tende a valer a pena.'),
+                        'Chance de melhorar': pct(
+                            'PPot: chance de a mão passar à frente com as próximas cartas '
+                            '(só no flop e turn).'),
+                        'Risco de piorar': pct(
+                            'NPot: chance de a mão ficar para trás com as próximas cartas '
+                            '(só no flop e turn).'),
+                        'Agressividade do agente': pct(
+                            'Quão agressivo o sistema vem jogando nesta rodada '
+                            '(apostas e aumentos recentes).'),
+                        'Fichas comprometidas': pct(
+                            'Peso do pot em relação às fichas que você ainda tem: '
+                            'pot / (pot + suas fichas). Perto de 100%, desistir fica caro.'),
+                    },
+                )
             st.markdown(texto)
         else:
             st.caption('Nenhuma decisão avaliável nesta rodada.')
@@ -286,7 +296,7 @@ elif status == 'GAME_OVER':
         st.session_state.game_ended = True
 
     if state['player_stack'] == 0:
-        st.error('🤖 Sistema venceu o jogo! Você ficou sem fichas.')
+        st.error('🧠 Sistema venceu o jogo! Você ficou sem fichas.')
     else:
         st.success('🏆 Você venceu o jogo! Sistema ficou sem fichas.')
 
