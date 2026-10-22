@@ -1,6 +1,14 @@
 import json
+import re
 from datetime import datetime, timezone
 from db.database import get_connection
+
+
+def normalize_participant_code(code: str):
+    """Canonical study code 'P<n>' (' p01 ' -> 'P1'), so the game and the
+    questionnaire match regardless of typing. Returns None if not in that format."""
+    match = re.fullmatch(r'[Pp]0*(\d+)', (code or '').strip())
+    return f'P{match.group(1)}' if match else None
 
 
 def _now() -> str:
@@ -27,10 +35,13 @@ class GameRecorder:
     def round_id(self):
         return self._round_id
 
-    def start_game(self):
+    def start_game(self, participant_code: str = None):
         conn = get_connection()
         cur  = conn.cursor()
-        cur.execute("INSERT INTO games (started_at) VALUES (?)", (_now(),))
+        cur.execute(
+            "INSERT INTO games (started_at, participant_code) VALUES (?, ?)",
+            (_now(), participant_code),
+        )
         self._game_id = cur.lastrowid
         conn.commit()
         conn.close()
@@ -63,13 +74,17 @@ class GameRecorder:
         conn.commit()
         conn.close()
 
-    def end_round(self, winner: str, pot: int, community_cards):
+    def end_round(self, winner: str, pot: int, community_cards,
+                  player_stack: int = None, system_stack: int = None):
         if self._round_id is None:
             return
         conn = get_connection()
         conn.execute(
-            "UPDATE rounds SET winner=?, pot=?, community_cards=? WHERE id=?",
-            (winner, pot, _cards_json(community_cards), self._round_id),
+            """UPDATE rounds SET winner=?, pot=?, community_cards=?,
+                                 player_stack_end=?, system_stack_end=?
+               WHERE id=?""",
+            (winner, pot, _cards_json(community_cards),
+             player_stack, system_stack, self._round_id),
         )
         conn.commit()
         conn.close()
@@ -95,6 +110,22 @@ class GameRecorder:
              fd.get('ppot'), fd.get('npot'),
              fd.get('opponent_aggression'), fd.get('stack_commitment'),
              fd.get('recommendation'), fd.get('recommended_action')),
+        )
+        conn.commit()
+        conn.close()
+
+    def record_feedback(self, level: str, prompt: str, response: str, model: str,
+                        round_id: int = None):
+        """Stores an LLM feedback text with the prompt that produced it, so the
+        texts can be checked against the data after the study."""
+        if self._game_id is None:
+            return
+        conn = get_connection()
+        conn.execute(
+            """INSERT INTO feedbacks
+               (game_id, round_id, level, prompt, response, model, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (self._game_id, round_id, level, prompt, response, model, _now()),
         )
         conn.commit()
         conn.close()

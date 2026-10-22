@@ -11,7 +11,7 @@ from db.recorder import GameRecorder
 class GameController:
     """Pure state-machine controller — no I/O. Driven by Streamlit or CLI."""
 
-    def __init__(self):
+    def __init__(self, participant_code: str = None):
         init_db()
         self.system   = SystemPlayer()
         self.player   = UserPlayer()
@@ -57,7 +57,7 @@ class GameController:
         self._actions_this_street  = []
         self._raises_prev_streets  = {'player': 0, 'system': 0}
 
-        self.recorder.start_game()
+        self.recorder.start_game(participant_code)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -353,7 +353,8 @@ class GameController:
 
         self._last_player_hand = list(self.player.hand)
         self._last_system_hand = list(self.system.hand)
-        self.recorder.end_round(self.round_winner, self.pot, community)
+        self.recorder.end_round(self.round_winner, self.pot, community,
+                                self.player.stack, self.system.stack)
         self.player.fold()
         self.system.fold()
         self.status = (
@@ -366,7 +367,8 @@ class GameController:
         self.log.append(f'{self._actor(self.round_winner).name} ganhou {self.pot}!')
         self._last_player_hand = list(self.player.hand)
         self._last_system_hand = list(self.system.hand)
-        self.recorder.end_round(self.round_winner, self.pot, self._community_cards())
+        self.recorder.end_round(self.round_winner, self.pot, self._community_cards(),
+                                self.player.stack, self.system.stack)
         self.player.fold()
         self.system.fold()
         self.status = (

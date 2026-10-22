@@ -83,12 +83,15 @@ def build_round_prompt(summary: dict) -> str:
     return '\n'.join(lines)
 
 
+MODEL = 'claude-haiku-4-5-20251001'
+
+
 # Ponto único de chamada ao provider de LLM — manter aqui facilita trocar/adicionar
 # outro provider (ex: modelo gratuito) sem mexer nos prompts/chamadores.
 def _call_claude(system_prompt: str, user_prompt: str, max_tokens: int) -> str:
     client  = anthropic.Anthropic()
     message = client.messages.create(
-        model='claude-haiku-4-5-20251001',
+        model=MODEL,
         max_tokens=max_tokens,
         system=system_prompt,
         messages=[{'role': 'user', 'content': user_prompt}],
@@ -96,9 +99,13 @@ def _call_claude(system_prompt: str, user_prompt: str, max_tokens: int) -> str:
     return message.content[0].text
 
 
-def generate_feedback(summary: dict) -> str:
-    return _call_claude(SYSTEM_PROMPT, build_prompt(summary), max_tokens=600)
+# Both return (text, prompt): the prompt is returned so the caller can store it
+# next to the generated text (table `feedbacks`).
+def generate_feedback(summary: dict) -> tuple:
+    prompt = build_prompt(summary)
+    return _call_claude(SYSTEM_PROMPT, prompt, max_tokens=600), prompt
 
 
-def generate_round_feedback(summary: dict) -> str:
-    return _call_claude(ROUND_SYSTEM_PROMPT, build_round_prompt(summary), max_tokens=250)
+def generate_round_feedback(summary: dict) -> tuple:
+    prompt = build_round_prompt(summary)
+    return _call_claude(ROUND_SYSTEM_PROMPT, prompt, max_tokens=250), prompt

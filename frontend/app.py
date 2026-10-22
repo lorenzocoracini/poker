@@ -5,7 +5,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 import streamlit as st
 from engine.game.controller import GameController
 from feedback.session_report import summarize_session, summarize_round
-from feedback.llm_client import generate_feedback, generate_round_feedback
+from feedback.llm_client import MODEL, generate_feedback, generate_round_feedback
+from db.recorder import normalize_participant_code
 
 st.set_page_config(page_title='Poker Agent', page_icon='🃏', layout='wide')
 
@@ -50,6 +51,7 @@ if 'ctrl' not in st.session_state:
     st.session_state.game_ended            = False
     st.session_state.feedback_result       = None
     st.session_state.round_feedback_result = None
+    st.session_state.participant_code      = None
 
 ctrl  = st.session_state.ctrl
 state = ctrl.get_state() if ctrl else None
@@ -60,6 +62,8 @@ state = ctrl.get_state() if ctrl else None
 with st.sidebar:
     st.title('🃏 Poker Agent')
     st.caption('Texas Hold\'em Heads-Up')
+    if st.session_state.get('participant_code'):
+        st.caption(f'Participante: **{st.session_state.participant_code}**')
     st.divider()
 
     if ctrl and state:
@@ -91,8 +95,16 @@ st.markdown('## Texas Hold\'em Heads-Up')
 
 if ctrl is None:
     st.info('Bem-vindo ao Poker Agent! Clique para iniciar.')
+    # Anonymous study code (P1, P2...) linking this game to the questionnaire.
+    # Only asked in study sessions (`make estudo` sets POKER_ESTUDO=1).
+    study = os.environ.get('POKER_ESTUDO') == '1'
+    code  = st.text_input('Código do participante', placeholder='Ex.: P1') if study else ''
     if st.button('🎴 Nova Partida', type='primary', use_container_width=True):
-        c = GameController()
+        if study and normalize_participant_code(code) is None:
+            st.error('Informe o código no formato P1, P2, P3...')
+            st.stop()
+        st.session_state.participant_code = normalize_participant_code(code)
+        c = GameController(st.session_state.get('participant_code'))
         c.start_new_round()
         st.session_state.ctrl                  = c
         st.session_state.game_ended            = False
@@ -213,7 +225,10 @@ elif status == 'ROUND_OVER':
             round_id = ctrl.recorder.round_id
             summary  = summarize_round(round_id)
             with st.spinner('Gerando feedback...'):
-                texto = generate_round_feedback(summary) if summary['total_decisoes'] else ''
+                texto = ''
+                if summary['total_decisoes']:
+                    texto, prompt = generate_round_feedback(summary)
+                    ctrl.recorder.record_feedback('round', prompt, texto, MODEL, round_id)
             st.session_state.round_feedback_result = (summary, texto)
         except Exception as e:
             st.warning(f'Não foi possível gerar o feedback da rodada: {e}')
@@ -307,7 +322,8 @@ elif status == 'GAME_OVER':
             game_id = ctrl.recorder.game_id
             summary = summarize_session(game_id)
             with st.spinner('Gerando feedback...'):
-                texto = generate_feedback(summary)
+                texto, prompt = generate_feedback(summary)
+                ctrl.recorder.record_feedback('game', prompt, texto, MODEL)
             st.session_state.feedback_result = (summary, texto)
         except Exception as e:
             st.warning(
@@ -327,7 +343,8 @@ elif status == 'GAME_OVER':
     st.divider()
 
     if st.button('🎴 Novo Jogo', type='primary', use_container_width=True):
-        c = GameController()
+        # Same participant keeps the code for the second game of the session.
+        c = GameController(st.session_state.get('participant_code'))
         c.start_new_round()
         st.session_state.ctrl                  = c
         st.session_state.game_ended            = False
