@@ -172,13 +172,17 @@ if status == 'WAITING_PLAYER':
     needs_amount = any(a in acts for a in ('bet', 'raise'))
 
     if needs_amount:
-        max_amt     = state['player_stack']
+        # The raise value is added on top of what must be called (to_call).
+        to_call     = state['to_call']
+        max_amt     = state['player_stack'] - to_call
         safe_min    = bb
         safe_max    = max(bb, max_amt)
         safe_val    = max(safe_min, min(bb, safe_max))
         input_key   = f'raise_{state["round_number"]}_{state["street"]}'
+        label = (f'Valor do raise: você paga {to_call} para igualar + este valor'
+                 if to_call else 'Valor do bet')
         st.number_input(
-            f'Valor do bet / raise  (BB = {bb}, pot = {state["pot"]})',
+            f'{label}  (BB = {bb}, pot = {state["pot"]})',
             min_value=safe_min,
             max_value=safe_max,
             value=safe_val,

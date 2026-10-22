@@ -175,6 +175,7 @@ class GameController:
             'last_player_action':         self._last_player_action[0] if self._last_player_action else None,
             'player_raises_this_street':  raises_this_street,
             'player_raises_prev_streets': self._raises_prev_streets.get('player', 0),
+            'opponent_all_in':            self.player.stack == 0,
         }
         action, amount = self.system.decide_action(gs)
         self._apply_action('system', action, amount, self.system.last_fuzzy_data)
@@ -207,6 +208,7 @@ class GameController:
         )
         action = translate_recommendation(
             recommendation, self.can_check, self.has_bet, self.to_call, self.player.stack,
+            opponent_all_in=self.system.stack == 0,
         )
         return {**features, 'recommendation': recommendation, 'recommended_action': action}
 
@@ -244,52 +246,50 @@ class GameController:
                 self.can_check  = True
                 self._actor_idx += 1
 
-        elif action in ('bet', 'raise'):
-            amt = min(amount, actor.stack)
-            actor.stack     -= amt
-            self.pot        += amt
-            self.to_call     = amt
+        elif action in ('bet', 'raise', 'allin'):
+            # `amount` is the raise on top of what is owed (to_call): the actor
+            # first matches the bet, then adds the raise. All-in raises by
+            # everything left after matching.
+            other_obj = self._actor(other)
+            call_part = min(self.to_call, actor.stack)
+            wanted    = actor.stack - call_part if action == 'allin' else amount
+            # Heads-up has no side pot: the part of a raise the opponent cannot
+            # cover is never put in, so it stays with the actor.
+            raise_part = max(0, min(wanted, actor.stack - call_part, other_obj.stack))
+            if raise_part == 0:
+                # Nothing left to raise (actor or opponent has no more chips): a call.
+                self._call(actor_name)
+                return
+            actor.stack     -= call_part + raise_part
+            self.pot        += call_part + raise_part
+            self.to_call     = raise_part
             self.has_bet     = True
             self.can_check   = False
             self.last_raiser = actor_name
-            self.log.append(f'{actor.name} {action} {amt}. Pot: {self.pot}')
+            label = 'ALL-IN' if action == 'allin' else action
+            self.log.append(f'{actor.name} {label} +{raise_part}. Pot: {self.pot}')
             self._actor_idx += 1
 
         elif action == 'call':
-            amt = min(self.to_call, actor.stack)
-            actor.stack -= amt
-            self.pot    += amt
-            self.to_call = 0
-            self.log.append(f'{actor.name} call {amt}. Pot: {self.pot}')
-            # Preflop limp: give BB option to check or raise
-            if self._is_preflop and self._actor_idx == 0 and self.last_raiser is None:
-                self.can_check  = True
-                self._actor_idx += 1
-            else:
-                self._next_street()
+            self._call(actor_name)
 
-        elif action == 'allin':
-            all_in_amt = actor.stack
-            other_obj  = self._actor(other)
-            # Em heads-up não há side pot: o excesso que o oponente não pode pagar
-            # volta imediatamente para quem foi all-in
-            effective  = min(all_in_amt, other_obj.stack)
-            excess     = all_in_amt - effective
-
-            actor.stack  = excess   # devolve o que não pode ser contestado
-            self.pot    += effective
-            self.to_call = effective
-            self.has_bet = True
-            self.last_raiser = actor_name
-
-            if excess > 0:
-                self.log.append(f'{actor.name} ALL-IN {effective} (devolvidos {excess}). Pot: {self.pot}')
-            else:
-                self.log.append(f'{actor.name} ALL-IN {effective}! Pot: {self.pot}')
-
+    def _call(self, actor_name: str):
+        actor     = self._actor(actor_name)
+        other_obj = self._actor(self._other(actor_name))
+        amt = min(self.to_call, actor.stack)
+        # Calling all-in for less than the bet: the uncalled part goes back to the bettor.
+        uncalled = self.to_call - amt
+        actor.stack     -= amt
+        other_obj.stack += uncalled
+        self.pot        += amt - uncalled
+        self.to_call     = 0
+        self.log.append(f'{actor.name} call {amt}. Pot: {self.pot}')
+        # Preflop limp: give BB option to check or raise
+        if self._is_preflop and self._actor_idx == 0 and self.last_raiser is None:
+            self.can_check  = True
             self._actor_idx += 1
-            if other_obj.stack == 0:
-                self._go_to_showdown()
+        else:
+            self._next_street()
 
     # ── Street and round transitions ──────────────────────────────────────────
 
@@ -383,15 +383,17 @@ class GameController:
         actor = self.player
         bb    = self.blind * 2
         acts  = []
+        # Against an all-in opponent there is nothing left to raise.
+        can_raise = actor.stack > 0 and self.system.stack > 0
 
         if self.can_check and not self.has_bet:
             acts.append(('check', 'Check', 0))
-            if actor.stack > 0:
+            if can_raise:
                 acts.append(('bet',   'Bet',                     bb * 2))
                 acts.append(('allin', f'All-in ({actor.stack})', actor.stack))
         elif self.to_call == 0:
             acts.append(('check', 'Check', 0))
-            if actor.stack > 0:
+            if can_raise:
                 acts.append(('raise', 'Raise',                   bb * 2))
                 acts.append(('allin', f'All-in ({actor.stack})', actor.stack))
         elif self.to_call >= actor.stack:
@@ -400,7 +402,7 @@ class GameController:
         else:
             acts.append(('fold',  'Fold',                   0))
             acts.append(('call',  f'Call ({self.to_call})', self.to_call))
-            if actor.stack > 0:
+            if can_raise:
                 acts.append(('raise', 'Raise',                   bb * 2))
                 acts.append(('allin', f'All-in ({actor.stack})', actor.stack))
 

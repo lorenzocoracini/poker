@@ -58,11 +58,13 @@ def compute_decision_features(hand: list, stack: int, game_state: dict) -> dict:
 
 
 def translate_recommendation(recommendation: str, can_check: bool, has_bet: bool,
-                              to_call: int, stack: int) -> str:
+                              to_call: int, stack: int, opponent_all_in: bool = False) -> str:
     """Maps the fuzzy agent's abstract fold/call/raise output onto the action
     label actually available in this spot (ex: 'raise' -> 'bet' when nothing
     has been wagered yet). Used both to pick the system's real action and to
     label what a human *should* have done, for display/scoring purposes."""
+    if opponent_all_in and recommendation == 'raise':
+        recommendation = 'call'  # nothing left to raise against an all-in opponent
     if can_check and not has_bet:
         return 'bet' if recommendation == 'raise' else 'check'
     if to_call == 0:
@@ -92,7 +94,8 @@ class SystemPlayer(Player):
             features['ppot'], features['npot'],
             features['opponent_aggression'], features['stack_commitment'],
         )
-        action = translate_recommendation(recommendation, can_check, has_bet, to_call, self.stack)
+        action = translate_recommendation(recommendation, can_check, has_bet, to_call, self.stack,
+                                          game_state.get('opponent_all_in', False))
 
         self.last_fuzzy_data = {
             **features, 'recommendation': recommendation, 'recommended_action': action,
