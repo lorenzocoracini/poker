@@ -14,7 +14,7 @@ Visão geral do projeto (setup, arquitetura, banco, feedback): ver
 
 O agente usa um **sistema de inferência Mamdani** (Mamdani & Assilian, 1975)
 implementado com `scikit-fuzzy` (`skfuzzy.control`), com **7 entradas**, **1 saída** e
-**28 regras**.
+**27 regras**.
 
 ```
 Estado do jogo
@@ -244,10 +244,10 @@ termos nomeiam regiões desse eixo.
 
 ---
 
-## 4. Base de regras (28 regras)
+## 4. Base de regras (27 regras)
 
 Uma única base de regras com um único consequente. R1–R14 são o sistema original
-(organizado por força da mão) e **não foram alteradas** na expansão. R15–R28 combinam
+(organizado por força da mão) e **não foram alteradas** na expansão. R15–R27 combinam
 `hand_strength` com uma (às vezes duas) das variáveis novas — evitando o produto
 cartesiano completo das 7 entradas (4×3×2×3×3×3×3 = 1.944 combinações), inviável de
 escrever e revisar à mão.
@@ -283,18 +283,25 @@ R18: media AND npot alto                              → fold    # média e vul
 
 # ── Agressividade do oponente (opponent modeling) ──────────────────────
 R19: fraca AND opp_aggression agressivo               → fold
-R20: media AND opp_aggression agressivo               → fold
-R21: media AND opp_aggression agressivo AND pot_odds alto → fold  # reforço
-R22: forte AND opp_aggression passivo                 → raise   # value bet contra passivo
-R23: media AND opp_aggression passivo                 → call    # call down mais solto
-R24: fraca AND opp_aggression passivo AND position dentro → raise # steal
+R20: media AND opp_aggression agressivo AND pot_odds alto → fold  # média contra agressão só sai se pagar caro
+R21: forte AND opp_aggression passivo                 → raise   # value bet contra passivo
+R22: media AND opp_aggression passivo                 → call    # call down mais solto
+R23: fraca AND opp_aggression passivo AND position dentro → raise # steal
 
 # ── Comprometimento de stack (SPR) ─────────────────────────────────────
-R25: forte AND stack_commitment alto                  → raise
-R26: media AND stack_commitment alto                  → call    # pot committed
-R27: fraca AND stack_commitment baixo                 → fold    # sobra stack, sem motivo pra arriscar
-R28: stack_commitment alto AND pot_odds baixo         → call
+R24: forte AND stack_commitment alto                  → raise
+R25: media AND stack_commitment alto                  → call    # pot committed
+R26: fraca AND stack_commitment baixo                 → fold    # sobra stack, sem motivo pra arriscar
+R27: stack_commitment alto AND pot_odds baixo         → call
 ```
+
+> **Versão 2 (22/10/2026):** a regra `media AND opp_aggression agressivo → fold`
+> (antiga R20) foi removida. Com o operador E como mínimo, ela era sempre ativada
+> com grau maior ou igual ao da regra que tem a condição extra `pot_odds alto`
+> (hoje R20), com o mesmo consequente, o que tornava essa condição inútil. Na
+> simulação da versão 1, isso fazia o agente desistir de mãos médias diante de
+> qualquer agressão, mesmo com pot odds baixas (ex.: 88% de fold no flop com 40% a
+> 50% de chance de vitória contra o adversário que sempre aumenta).
 
 Resumo do comportamento:
 
@@ -358,7 +365,7 @@ call, 0.20), R8 (media ∧ dentro → call, 0.20). Agregado: `raise` cortado em 
 
 Mesma situação **fora de posição** e com oponente **agressivo** (`position=0.0`,
 `opponent_aggression=0.90`): ativam R3 (forte ∧ fora → call, 0.47), R5 (call, 0.20),
-R9 (media ∧ fora → fold, 0.20) e R20 (media ∧ agressivo → fold, 0.20) → centroide
+R9 (media ∧ fora → fold, 0.20) → centroide
 **0.415** → `call`.
 
 (Valores obtidos rodando `FuzzyPokerAgent().decide(...)` no código atual.)

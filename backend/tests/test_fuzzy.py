@@ -57,3 +57,16 @@ def test_fuzzy_agent_weak_hand_against_aggressive_opponent_folds():
         ppot_val=0.1, npot_val=0.1, aggression_val=0.9, commitment_val=0.1,
     )
     assert result == 'fold'
+
+
+@pytest.mark.parametrize('pot_odds', [0.15, 0.19, 0.30])
+def test_medium_hand_in_position_calls_cheap_bet_against_aggression(pot_odds):
+    # Version 2: aggression alone no longer makes a medium hand fold; folding
+    # requires the bet to be expensive (rule `media AND agressivo AND pot_odds alto`).
+    agent = FuzzyPokerAgent()
+    assert agent.decide(0.50, pot_odds, 1.0, 0.20, 0.20, 0.80, 0.25) == 'call'
+
+
+def test_medium_hand_folds_expensive_bet_against_aggression():
+    agent = FuzzyPokerAgent()
+    assert agent.decide(0.50, 0.65, 1.0, 0.20, 0.20, 0.80, 0.25) == 'fold'

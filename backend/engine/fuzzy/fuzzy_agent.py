@@ -99,8 +99,11 @@ class FuzzyPokerAgent:
             ctrl.Rule(hand_strength['media'] & npot['alto'],                        action_score['fold']),
 
             # --- Agressividade do oponente (opponent modeling) ---
+            # Version 2: the former rule `media AND agressivo -> fold` was removed. Under
+            # Mamdani min it always fired at least as strongly as the rule below, which
+            # made the pot odds condition useless and led the agent to fold medium hands
+            # against any aggression, even when calling was cheap (see FUZZY_LOGIC.md).
             ctrl.Rule(hand_strength['fraca'] & opponent_aggression['agressivo'],                     action_score['fold']),
-            ctrl.Rule(hand_strength['media'] & opponent_aggression['agressivo'],                     action_score['fold']),
             ctrl.Rule(hand_strength['media'] & opponent_aggression['agressivo'] & pot_odds['alto'],  action_score['fold']),
             ctrl.Rule(hand_strength['forte'] & opponent_aggression['passivo'],                       action_score['raise']),
             ctrl.Rule(hand_strength['media'] & opponent_aggression['passivo'],                       action_score['call']),

@@ -12,7 +12,7 @@ linguagem natural comparando essas jogadas com o que o agente recomendaria.
 | Documento | Conteúdo |
 |---|---|
 | `README.md` (este) | Setup, arquitetura, motor de jogo, banco, feedback, testes |
-| [`backend/engine/fuzzy/FUZZY_LOGIC.md`](backend/engine/fuzzy/FUZZY_LOGIC.md) | Sistema fuzzy completo: variáveis, funções de pertinência, 28 regras, inferência, exemplo resolvido, referências |
+| [`backend/engine/fuzzy/FUZZY_LOGIC.md`](backend/engine/fuzzy/FUZZY_LOGIC.md) | Sistema fuzzy completo: variáveis, funções de pertinência, 27 regras, inferência, exemplo resolvido, referências |
 
 ---
 
@@ -104,7 +104,7 @@ code/poker/
     │   │   ├── user_player.py          ← humano
     │   │   └── system_player.py        ← agente + cálculo das features fuzzy
     │   └── fuzzy/
-    │       ├── fuzzy_agent.py          ← FuzzyPokerAgent (Mamdani, 7 entradas, 28 regras)
+    │       ├── fuzzy_agent.py          ← FuzzyPokerAgent (Mamdani, 7 entradas, 27 regras)
     │       ├── hand_strength.py        ← win prob e PPot/NPot por Monte Carlo
     │       └── FUZZY_LOGIC.md          ← documentação do sistema fuzzy
     ├── db/
