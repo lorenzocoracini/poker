@@ -3,8 +3,8 @@
 Inputs (each one is optional; missing inputs are skipped):
   --simulacao  SQLite file written by simular.py
   --estudo     SQLite file of the user study (games with a participant code)
-  --respostas  questionnaire CSV exported from Google Forms, with the header
-               renamed to: codigo,N1,N2,F1,F2,F3,F4,F5,F6,F7[,F8]
+  --respostas  questionnaire CSV exported from Google Forms; columns are matched
+               by the id at the start of each title (N1., F3., J2., ...) and "Código"
   --auditoria  CSV for the manual check of the LLM texts (created/updated here,
                the column `classificacao` is filled by hand with 'fiel' or 'erro')
 
@@ -18,6 +18,7 @@ Usage (from code/poker):
 import argparse
 import csv
 import os
+import re
 import sqlite3
 import sys
 
@@ -37,6 +38,9 @@ STREETS = ['preflop', 'flop', 'turn', 'river']
 ACTIONS = ['fold', 'check', 'call', 'bet', 'raise', 'allin']
 LIKERT_ITEMS = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6']
 INDEX_ITEMS = ['F1', 'F2', 'F3', 'F4', 'F5']  # F6 is the overall item, kept apart
+# Game experience (fun, challenge, agent coherence, interface, learning, intended use).
+# They measure different things, so they are reported per item, not as an index.
+GAME_ITEMS = ['J1', 'J2', 'J3', 'J4', 'J5', 'J6']
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -234,27 +238,41 @@ def _compare(label: str, variable: str, a: list, b: list) -> list:
             float(u), float(p)]
 
 
+def _column_id(header: str):
+    """Maps a Google Forms column title to its id: 'N1. Qual é...' -> 'N1',
+    'Código do participante' -> 'codigo'. Already renamed headers pass through."""
+    match = re.match(r'\s*(N[12]|F[1-8]|J[1-6])\b', header)
+    if match:
+        return match.group(1)
+    if header.strip().lower().startswith(('codigo', 'código')):
+        return 'codigo'
+    return header
+
+
 def analyze_questionnaire(path: str, out: str, first_game: dict):
     print(f'Respostas: {path}')
     with open(path, newline='', encoding='utf-8') as f:
-        answers = list(csv.DictReader(f))
+        answers = [{_column_id(k): v for k, v in row.items()} for row in csv.DictReader(f)]
     for a in answers:
         a['codigo'] = normalize_participant_code(a['codigo']) or a['codigo'].strip()
         a['N1'] = _level(a['N1'])
         a['N2'] = _level(a['N2'])
-        for item in LIKERT_ITEMS:
-            a[item] = _level(a[item])
+        for item in LIKERT_ITEMS + GAME_ITEMS:
+            a[item] = _level(a.get(item) or '')
 
-    # Per item: distribution for the stacked bars, median, mode and % agreement (4 or 5).
+    # Per item: distribution for the stacked bars, median, mode and % of ratings 4 or 5.
+    # Every scale has its positive end at 5, except J2, where 5 means more challenging.
     item_rows = []
-    for item in LIKERT_ITEMS:
+    for item in LIKERT_ITEMS + GAME_ITEMS:
         values = [a[item] for a in answers if a[item] is not None]
+        if not values:
+            continue
         counts = [values.count(v) for v in range(1, 6)]
         n = len(values)
         item_rows.append([item, n, float(np.median(values)), counts.index(max(counts)) + 1,
                           sum(counts[3:]) / n * 100] + [c / n * 100 for c in counts])
     write_csv(out, 'quest_itens.csv',
-              ['item', 'n', 'mediana', 'moda', 'pct_concorda',
+              ['item', 'n', 'mediana', 'moda', 'pct_4ou5',
                'p1', 'p2', 'p3', 'p4', 'p5'], item_rows)
 
     complete = [a for a in answers if all(a[i] is not None for i in INDEX_ITEMS)]
@@ -269,19 +287,27 @@ def analyze_questionnaire(path: str, out: str, first_game: dict):
         group = 'iniciante' if a['N1'] in (1, 2) else 'experiente'
         won = first_game.get(a['codigo'], '')
         part_rows.append([a['codigo'], a['N1'], a['N2'], group, won,
-                          float(np.mean([a[i] for i in INDEX_ITEMS])), a['F6']])
-    write_csv(out, 'quest_participantes.csv',
-              ['codigo', 'nivel', 'familiaridade', 'grupo', 'venceu', 'indice', 'F6'],
-              part_rows)
+                          float(np.mean([a[i] for i in INDEX_ITEMS])), a['F6']]
+                         + [a[i] if a[i] is not None else '' for i in GAME_ITEMS])
+    header = ['codigo', 'nivel', 'familiaridade', 'grupo', 'venceu', 'indice', 'F6'] + GAME_ITEMS
+    write_csv(out, 'quest_participantes.csv', header, part_rows)
 
+    def column(var, rows):
+        col = header.index(var)
+        return [r[col] for r in rows if r[col] != '']
+
+    beginners  = [r for r in part_rows if r[3] == 'iniciante']
+    experts    = [r for r in part_rows if r[3] == 'experiente']
+    winners    = [r for r in part_rows if r[4] == 1]
+    losers     = [r for r in part_rows if r[4] == 0]
     tests = []
-    for var, col in (('indice', 5), ('F6', 6)):
-        tests.append(_compare('iniciante x experiente', var,
-                              [r[col] for r in part_rows if r[3] == 'iniciante'],
-                              [r[col] for r in part_rows if r[3] == 'experiente']))
-        tests.append(_compare('venceu x perdeu', var,
-                              [r[col] for r in part_rows if r[4] == 1],
-                              [r[col] for r in part_rows if r[4] == 0]))
+    for var in ('indice', 'F6'):
+        tests.append(_compare('iniciante x experiente', var, column(var, beginners), column(var, experts)))
+        tests.append(_compare('venceu x perdeu', var, column(var, winners), column(var, losers)))
+    # Game items: challenge, learning and intended use by experience; agent coherence by result.
+    for var in ('J2', 'J5', 'J6'):
+        tests.append(_compare('iniciante x experiente', var, column(var, beginners), column(var, experts)))
+    tests.append(_compare('venceu x perdeu', 'J3', column('J3', winners), column('J3', losers)))
     write_csv(out, 'quest_testes.csv',
               ['comparacao', 'variavel', 'n1', 'n2', 'mediana1', 'mediana2', 'U', 'p'], tests)
 
