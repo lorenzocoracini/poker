@@ -63,8 +63,10 @@ def translate_recommendation(recommendation: str, can_check: bool, has_bet: bool
     label actually available in this spot (ex: 'raise' -> 'bet' when nothing
     has been wagered yet). Used both to pick the system's real action and to
     label what a human *should* have done, for display/scoring purposes."""
-    if opponent_all_in and recommendation == 'raise':
-        recommendation = 'call'  # nothing left to raise against an all-in opponent
+    if (opponent_all_in or stack == 0) and recommendation == 'raise':
+        # Nothing left to raise: the opponent is all-in, or the player itself
+        # has no chips left (ex: big blind that used its last chips).
+        recommendation = 'call'
     if can_check and not has_bet:
         return 'bet' if recommendation == 'raise' else 'check'
     if to_call == 0:

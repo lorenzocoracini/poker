@@ -113,6 +113,9 @@ class GameController:
         bb_obj = self._actor(self.big_blind_pos)
         sb_amt = min(sb, btn.stack)
         bb_amt = min(bb, bb_obj.stack)
+        # Big blind all-in for less than the small blind: the part of the small
+        # blind that cannot be contested stays with the dealer.
+        sb_amt = min(sb_amt, bb_amt)
         btn.stack    -= sb_amt
         bb_obj.stack -= bb_amt
         self.pot = sb_amt + bb_amt

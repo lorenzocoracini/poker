@@ -124,3 +124,26 @@ def test_random_games_keep_contributions_consistent(tmp_path, monkeypatch, seed)
             assert c.player.stack + c.system.stack == 1200
             if state['status'] == 'GAME_OVER' or c.round_number > 300:
                 break
+
+
+def test_translate_recommendation_never_raises_without_chips():
+    # Big blind that used its last chips, nothing to call: check, not raise.
+    assert translate_recommendation('raise', False, True, 0, 0) == 'check'
+    assert translate_recommendation('raise', False, True, 0, 100) == 'raise'
+
+
+def test_short_big_blind_returns_uncontested_small_blind(tmp_path, monkeypatch):
+    # Big blind with 10 chips at blinds 20/40: only 10 of the small blind is contested.
+    monkeypatch.setattr(database, 'DB_PATH', str(tmp_path / 'blind.db'))
+    with contextlib.redirect_stdout(io.StringIO()):
+        c = GameController()
+        c.round_number, c.blind = 11, 20       # next round keeps blinds at 20/40
+        c.button = 'player'                    # start_new_round rotates: system becomes dealer
+        c.big_blind_pos = 'system'
+        c.player.stack, c.system.stack = 10, 1190
+        c.start_new_round()
+    assert c.button == 'system'
+    assert c.pot <= 20 or c.showdown
+    assert c.player.stack + c.system.stack + (0 if c.showdown else c.pot) == 1200
+    if c.showdown:
+        assert (c.player.stack, c.system.stack) in {(20, 1180), (0, 1200), (10, 1190)}
