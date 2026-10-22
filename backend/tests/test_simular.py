@@ -42,3 +42,15 @@ def test_play_game_finishes_and_is_reproducible(temp_db):
     assert len(rows) == 4
     assert all(r['participant_code'] == 'SIM-aleatorio' for r in rows)
     assert all(r['winner'] in ('player', 'system') for r in rows)
+
+
+def test_check_empty_refuses_database_with_games(tmp_path, monkeypatch):
+    db_path = tmp_path / 'cheio.db'
+    monkeypatch.setattr(database, 'DB_PATH', str(db_path))
+    database.init_db()
+    simular.check_empty(str(db_path), append=False)          # empty: accepted
+    simular.play_game('aleatorio', 'teste-0')
+    with pytest.raises(SystemExit):
+        simular.check_empty(str(db_path), append=False)
+    simular.check_empty(str(db_path), append=True)           # explicit append: accepted
+    simular.check_empty(str(tmp_path / 'novo.db'), append=False)  # missing file: accepted

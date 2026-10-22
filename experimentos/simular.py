@@ -14,6 +14,7 @@ import contextlib
 import io
 import os
 import random
+import sqlite3
 import sys
 import time
 
@@ -89,6 +90,23 @@ def play_game(opponent_name: str, seed: str) -> dict:
     }
 
 
+def check_empty(db_path: str, append: bool):
+    """Refuses a database that already has games, unless `append` is set: games of
+    two runs with the same seed would be counted twice by the analysis."""
+    if append or not os.path.exists(db_path):
+        return
+    conn = sqlite3.connect(db_path)
+    try:
+        n = conn.execute('SELECT COUNT(*) FROM games').fetchone()[0]
+    except sqlite3.OperationalError:
+        n = 0  # file without the games table yet
+    finally:
+        conn.close()
+    if n:
+        sys.exit(f'O banco {db_path} já tem {n} partida(s). Apague o arquivo para começar '
+                 f'uma simulação nova ou use --acrescentar para somar a ele.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--partidas', type=int, default=200,
@@ -99,8 +117,11 @@ def main():
                         default=list(OPPONENTS), help='opponents to play against')
     parser.add_argument('--db', default=os.path.join(HERE, 'simulacao.db'),
                         help='output SQLite file (default: experimentos/simulacao.db)')
+    parser.add_argument('--acrescentar', action='store_true',
+                        help='add games to a database that already has some')
     args = parser.parse_args()
 
+    check_empty(args.db, args.acrescentar)
     database.DB_PATH = args.db
     print(f'Banco: {args.db}', file=sys.stderr)
 
