@@ -201,7 +201,7 @@ def analyze_study(path: str, out: str) -> dict:
                              p['foldou_quando_recomendacao_era_raise'],
                              p['deu_raise_quando_recomendacao_era_fold'],
                              p['continuou_mao_fraca_win_prob_abaixo_0_35']])
-        first_game.setdefault(code, won)
+        first_game.setdefault(code, {'venceu': won, 'nota': s['nota_media']})
 
     action_rows = [['humanos'] + r for r in
                    action_frequency(conn, f"{STUDY_FILTER} AND g.winner IS NOT NULL", ())]
@@ -214,11 +214,43 @@ def analyze_study(path: str, out: str) -> dict:
                'decisoes', 'nota_media', 'feedbacks_rodada', 'feedbacks_partida'], game_rows)
     write_csv(out, 'estudo_nota_etapa.csv',
               ['codigo', 'partida', 'etapa', 'decisoes', 'nota_media'], street_rows)
+    # Alignment per street over all participants (weighted by number of decisions).
+    summary = []
+    for street in STREETS:
+        rows = [r for r in street_rows if r[2] == street]
+        n = sum(r[3] for r in rows)
+        summary.append([street, n, sum(r[3] * r[4] for r in rows) / n if n else 0.0])
+    n = sum(r[1] for r in summary)
+    summary.append(['total', n, sum(r[1] * r[2] for r in summary) / n if n else 0.0])
+    write_csv(out, 'estudo_nota_etapa_resumo.csv', ['etapa', 'decisoes', 'nota_media'], summary)
     write_csv(out, 'estudo_padroes.csv',
               ['codigo', 'partida', 'foldou_rec_raise', 'raise_rec_fold', 'continuou_fraca'],
               pattern_rows)
     write_csv(out, 'estudo_acoes_agente.csv', ['oponente', 'etapa', 'n'] + ACTIONS, action_rows)
     return first_game
+
+
+# ── Agent actions, simulated opponents and participants together ─────────────
+
+ACTION_GROUPS = [('sim_acoes.csv', 'aleatorio', 'Aleatório'),
+                 ('sim_acoes.csv', 'sempre_paga', 'Sempre paga'),
+                 ('sim_acoes.csv', 'sempre_aumenta', 'Sempre aumenta'),
+                 ('estudo_acoes_agente.csv', 'humanos', 'Participantes')]
+
+
+def write_action_summary(out: str):
+    """One row per opponent group with the agent's overall action frequencies,
+    the data of the action figure in Chapter 5."""
+    rows = []
+    for name, group, label in ACTION_GROUPS:
+        path = os.path.join(out, name)
+        if not os.path.exists(path):
+            continue
+        with open(path, newline='', encoding='utf-8') as f:
+            for r in csv.DictReader(f):
+                if r['oponente'] == group and r['etapa'] == 'total':
+                    rows.append([label, int(r['n'])] + [float(r[a]) for a in ACTIONS])
+    write_csv(out, 'acoes_resumo.csv', ['grupo', 'n'] + ACTIONS, rows)
 
 
 # ── Questionnaire ─────────────────────────────────────────────────────────────
@@ -285,11 +317,13 @@ def analyze_questionnaire(path: str, out: str, first_game: dict):
     part_rows = []
     for a in complete:
         group = 'iniciante' if a['N1'] in (1, 2) else 'experiente'
-        won = first_game.get(a['codigo'], '')
-        part_rows.append([a['codigo'], a['N1'], a['N2'], group, won,
+        game = first_game.get(a['codigo'], {})
+        part_rows.append([a['codigo'], a['N1'], a['N2'], group, game.get('venceu', ''),
                           float(np.mean([a[i] for i in INDEX_ITEMS])), a['F6']]
-                         + [a[i] if a[i] is not None else '' for i in GAME_ITEMS])
-    header = ['codigo', 'nivel', 'familiaridade', 'grupo', 'venceu', 'indice', 'F6'] + GAME_ITEMS
+                         + [a[i] if a[i] is not None else '' for i in GAME_ITEMS]
+                         + [game.get('nota', '')])
+    # `nota`: alignment score of the first game, compared between experience groups.
+    header = ['codigo', 'nivel', 'familiaridade', 'grupo', 'venceu', 'indice', 'F6'] + GAME_ITEMS + ['nota']
     write_csv(out, 'quest_participantes.csv', header, part_rows)
 
     def column(var, rows):
@@ -305,7 +339,7 @@ def analyze_questionnaire(path: str, out: str, first_game: dict):
         tests.append(_compare('iniciante x experiente', var, column(var, beginners), column(var, experts)))
         tests.append(_compare('venceu x perdeu', var, column(var, winners), column(var, losers)))
     # Game items: challenge, learning and intended use by experience; agent coherence by result.
-    for var in ('J2', 'J5', 'J6'):
+    for var in ('nota', 'J2', 'J5', 'J6'):
         tests.append(_compare('iniciante x experiente', var, column(var, beginners), column(var, experts)))
     tests.append(_compare('venceu x perdeu', 'J3', column('J3', winners), column('J3', losers)))
     write_csv(out, 'quest_testes.csv',
@@ -388,6 +422,7 @@ def main():
         update_audit(args.estudo, args.auditoria, args.saida)
     if os.path.exists(args.respostas):
         analyze_questionnaire(args.respostas, args.saida, first_game)
+    write_action_summary(args.saida)
 
 
 if __name__ == '__main__':

@@ -38,7 +38,9 @@ def test_questionnaire_reads_forms_export(tmp_path):
         w.writerow(HEADER)
         w.writerows(ROWS)
 
-    analisar.analyze_questionnaire(str(src), str(tmp_path), first_game={'P1': 1, 'P2': 0, 'P3': 1})
+    analisar.analyze_questionnaire(str(src), str(tmp_path), first_game={'P1': {'venceu': 1, 'nota': 80.0},
+                                                                      'P2': {'venceu': 0, 'nota': 60.0},
+                                                                      'P3': {'venceu': 1, 'nota': 90.0}})
 
     items = {r['item']: r for r in _read(tmp_path / 'quest_itens.csv')}
     assert set(items) == set(analisar.LIKERT_ITEMS + analisar.GAME_ITEMS)
@@ -47,5 +49,6 @@ def test_questionnaire_reads_forms_export(tmp_path):
     assert set(people) == {'P1', 'P2', 'P3'}           # codes normalized
     assert people['P1']['grupo'] == 'iniciante' and people['P2']['grupo'] == 'experiente'
     assert people['P1']['venceu'] == '1'
+    assert float(people['P2']['nota']) == 60.0
     tests = {(r['comparacao'], r['variavel']) for r in _read(tmp_path / 'quest_testes.csv')}
     assert ('iniciante x experiente', 'J2') in tests and ('venceu x perdeu', 'J3') in tests
