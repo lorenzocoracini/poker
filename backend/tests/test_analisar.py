@@ -52,3 +52,15 @@ def test_questionnaire_reads_forms_export(tmp_path):
     assert float(people['P2']['nota']) == 60.0
     tests = {(r['comparacao'], r['variavel']) for r in _read(tmp_path / 'quest_testes.csv')}
     assert ('iniciante x experiente', 'J2') in tests and ('venceu x perdeu', 'J3') in tests
+
+
+def test_questionnaire_skips_answers_without_code(tmp_path, capsys):
+    src = tmp_path / 'respostas.csv'
+    with open(src, 'w', newline='', encoding='utf-8') as f:
+        w = csv.writer(f)
+        w.writerow(HEADER)
+        w.writerows(ROWS + [['t', '', '2 - Conheço as regras', '2', '4', '5', '5', '5', '4', '5',
+                             'Rodada', '5', '4', '5', '4', '5', '5']])
+    analisar.analyze_questionnaire(str(src), str(tmp_path), first_game={})
+    assert len(_read(tmp_path / 'quest_participantes.csv')) == 3
+    assert 'linha 5 sem código' in capsys.readouterr().out

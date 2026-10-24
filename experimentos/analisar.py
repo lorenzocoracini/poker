@@ -284,9 +284,18 @@ def _column_id(header: str):
 def analyze_questionnaire(path: str, out: str, first_game: dict):
     print(f'Respostas: {path}')
     with open(path, newline='', encoding='utf-8') as f:
-        answers = [{_column_id(k): v for k, v in row.items()} for row in csv.DictReader(f)]
+        rows = [{_column_id(k): v for k, v in row.items()} for row in csv.DictReader(f)]
+    # An answer without a valid code (P1, P2, ...) cannot be linked to a game and
+    # is usually a duplicate or test submission: it is reported and left out.
+    answers = []
+    for i, a in enumerate(rows, start=2):
+        code = normalize_participant_code(a.get('codigo', ''))
+        if code is None:
+            print(f'  aviso: linha {i} sem código de participante válido ({a.get("codigo", "")!r}), ignorada')
+            continue
+        a['codigo'] = code
+        answers.append(a)
     for a in answers:
-        a['codigo'] = normalize_participant_code(a['codigo']) or a['codigo'].strip()
         a['N1'] = _level(a['N1'])
         a['N2'] = _level(a['N2'])
         for item in LIKERT_ITEMS + GAME_ITEMS:
