@@ -129,7 +129,10 @@ st.divider()
 
 col_p, col_s = st.columns(2)
 
-reveal_system = state['showdown'] or status in ('ROUND_OVER', 'GAME_OVER')
+# As in a real game, the system's cards are only shown at showdown (river closed
+# by check-check or a call, or an all-in that runs the board). After a fold they
+# stay hidden.
+reveal_system = state['showdown']
 
 with col_p:
     st.markdown('#### 👤 Sua mão')
